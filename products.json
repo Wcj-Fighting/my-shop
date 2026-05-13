@@ -23,6 +23,12 @@
       "name": "火锅",
       "price": "123",
       "image": "https://raw.githubusercontent.com/Wcj-Fighting/my-shop/main/images/1778694734149-ethps1.jpg"
+    },
+    {
+      "id": 10,
+      "name": "鼠标",
+      "price": "1234",
+      "image": "https://raw.githubusercontent.com/Wcj-Fighting/my-shop/main/images/1778694977737-4slcex.jpg"
     }
   ]
 }
