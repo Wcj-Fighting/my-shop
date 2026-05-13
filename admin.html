@@ -418,8 +418,10 @@
                 </div>
                 <div class="form-row full">
                     <div class="form-group">
-                        <label>图片 URL</label>
-                        <input type="text" id="productImage" placeholder="https://example.com/image.jpg" oninput="previewImage()">
+                        <label>商品图片</label>
+                        <input type="file" id="imageFile" accept="image/*" style="display: none;" onchange="handleImageUpload(this.files[0])">
+                        <button type="button" class="btn-secondary" onclick="document.getElementById('imageFile').click()" style="margin-bottom: 8px;">📷 拍照 / 从相册选择</button>
+                        <input type="text" id="productImage" placeholder="或粘贴图片 URL" oninput="previewImage()">
                         <img id="imagePreview" class="preview-image" style="display: none;">
                     </div>
                 </div>
@@ -609,6 +611,107 @@
             }
         }
 
+        // 处理图片上传（拍照/相册）
+        async function handleImageUpload(file) {
+            if (!file) return;
+
+            const username = (localStorage.getItem('github_username') || '').trim();
+            const repo = (localStorage.getItem('github_repo') || '').trim();
+            const token = (localStorage.getItem('github_token') || '').trim();
+
+            if (!username || !repo || !token) {
+                showStatus('productsStatus', '请先配置 GitHub 信息再上传图片', 'error');
+                return;
+            }
+
+            try {
+                showStatus('productsStatus', '正在压缩图片...', 'loading');
+                const compressed = await compressImage(file, 800, 0.85);
+                const sizeKB = Math.round(compressed.size / 1024);
+
+                showStatus('productsStatus', `正在上传图片（${sizeKB} KB）...`, 'loading');
+                const base64 = await blobToBase64(compressed);
+
+                const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+                const path = `images/${filename}`;
+                const url = `https://api.github.com/repos/${username}/${repo}/contents/${path}`;
+
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: `Upload image ${filename}`,
+                        content: base64
+                    })
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`${response.status}: ${errText.slice(0, 200)}`);
+                }
+
+                const data = await response.json();
+                const imageUrl = data.content.download_url;
+
+                document.getElementById('productImage').value = imageUrl;
+                previewImage();
+
+                showStatus('productsStatus', `✓ 图片上传成功（${sizeKB} KB）`, 'success');
+            } catch (error) {
+                console.error('Upload failed:', error);
+                showStatus('productsStatus', `图片上传失败：${error.message}`, 'error');
+            } finally {
+                document.getElementById('imageFile').value = '';
+            }
+        }
+
+        // 压缩图片（最长边限制 + JPEG 质量）
+        function compressImage(file, maxSize, quality) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let { width, height } = img;
+                        if (width > height && width > maxSize) {
+                            height = height * maxSize / width;
+                            width = maxSize;
+                        } else if (height > maxSize) {
+                            width = width * maxSize / height;
+                            height = maxSize;
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                        canvas.toBlob(
+                            (blob) => blob ? resolve(blob) : reject(new Error('压缩失败')),
+                            'image/jpeg',
+                            quality
+                        );
+                    };
+                    img.onerror = () => reject(new Error('图片加载失败'));
+                    img.src = e.target.result;
+                };
+                reader.onerror = () => reject(new Error('文件读取失败'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Blob 转 base64（去掉 data: 前缀）
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = () => reject(new Error('Base64 编码失败'));
+                reader.readAsDataURL(blob);
+            });
+        }
+
         // 保存到 GitHub
         async function saveToGitHub() {
             const username = (localStorage.getItem('github_username') || '').trim();
@@ -664,7 +767,10 @@
                     throw new Error(`PUT ${putResponse.status}: ${errText.slice(0, 200)}`);
                 }
 
-                showStatus('productsStatus', '✓ 已成功保存到 GitHub！约 1 分钟后刷新展示页可见更新', 'success');
+                // 第三步：清理孤儿图片（仓库里 images/ 下没被任何商品引用的图）
+                const cleanupCount = await cleanupOrphanImages(username, repo, token);
+                const cleanupMsg = cleanupCount > 0 ? `，清理了 ${cleanupCount} 张孤儿图片` : '';
+                showStatus('productsStatus', `✓ 已成功保存到 GitHub${cleanupMsg}！约 1 分钟后刷新展示页可见更新`, 'success');
             } catch (error) {
                 console.error('Error saving to GitHub:', error);
                 showStatus('productsStatus', `保存失败：${error.message}`, 'error');
@@ -684,6 +790,65 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             showStatus('productsStatus', '✓ 已下载 products.json，请替换项目根目录下的同名文件', 'success');
+        }
+
+        // 清理仓库 images/ 下没被引用的图片
+        async function cleanupOrphanImages(username, repo, token) {
+            const referenced = new Set(products.map(p => p.image).filter(Boolean));
+            const listUrl = `https://api.github.com/repos/${username}/${repo}/contents/images`;
+
+            let files;
+            try {
+                const res = await fetch(listUrl, {
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github+json'
+                    }
+                });
+                if (res.status === 404) return 0;
+                if (!res.ok) {
+                    console.warn('List images failed:', res.status);
+                    return 0;
+                }
+                files = await res.json();
+            } catch (e) {
+                console.warn('List images error:', e);
+                return 0;
+            }
+
+            if (!Array.isArray(files)) return 0;
+
+            let deleted = 0;
+            for (const file of files) {
+                if (file.type !== 'file') continue;
+                if (referenced.has(file.download_url)) continue;
+
+                try {
+                    const delRes = await fetch(
+                        `https://api.github.com/repos/${username}/${repo}/contents/${file.path}`,
+                        {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `token ${token}`,
+                                'Accept': 'application/vnd.github+json',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                message: `Cleanup orphan image ${file.name}`,
+                                sha: file.sha
+                            })
+                        }
+                    );
+                    if (delRes.ok) {
+                        deleted++;
+                    } else {
+                        console.warn(`Delete ${file.path} failed:`, delRes.status);
+                    }
+                } catch (e) {
+                    console.warn(`Delete ${file.path} error:`, e);
+                }
+            }
+            return deleted;
         }
 
         // 显示状态信息
