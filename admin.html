@@ -496,7 +496,7 @@
         // 加载商品
         async function loadProducts() {
             try {
-                const response = await fetch('products.json');
+                const response = await fetch(`products.json?t=${Date.now()}`, { cache: 'no-store' });
                 if (!response.ok) throw new Error('Failed to load products');
                 const data = await response.json();
                 products = data.products || [];
