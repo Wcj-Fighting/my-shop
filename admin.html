@@ -366,31 +366,18 @@
 
         <!-- 配置区 -->
         <div class="config-section">
-            <h2>GitHub 配置</h2>
+            <h2>GitHub Token</h2>
             <div class="config-help">
-                <strong>首次使用？</strong> 需要配置 GitHub 账号信息来保存商品数据。
-                <br>1. 访问 <a href="https://github.com/settings/tokens" target="_blank">GitHub Token 页面</a>
-                <br>2. 点击 "Generate new token (classic)"
-                <br>3. 勾选 "repo" 权限，生成 token
-                <br>4. 复制 token 粘贴到下方，仅在您的浏览器本地保存
+                仓库 <strong>Wcj-Fighting/my-shop</strong> 已写死。只需在下方输入 Token 即可，仅保存在你的浏览器。
+                <br>忘了 Token 或首次使用？<a href="https://github.com/settings/tokens" target="_blank">点此生成新 Token</a>（勾选 repo 权限）
             </div>
-            <div class="config-grid">
-                <div class="form-group">
-                    <label>GitHub 用户名</label>
-                    <input type="text" id="githubUsername" placeholder="例：octocat">
-                </div>
-                <div class="form-group">
-                    <label>仓库名</label>
-                    <input type="text" id="githubRepo" placeholder="例：my-shop">
-                </div>
-                <div class="form-group" style="grid-column: 1/-1;">
-                    <label>Personal Access Token</label>
-                    <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxx">
-                </div>
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label>Personal Access Token</label>
+                <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxx">
             </div>
             <div class="button-group">
-                <button class="btn-primary" onclick="saveConfig()">保存配置</button>
-                <button class="btn-secondary" onclick="clearConfig()">清除配置</button>
+                <button class="btn-primary" onclick="saveConfig()">保存 Token</button>
+                <button class="btn-secondary" onclick="clearConfig()">清除 Token</button>
             </div>
             <div id="configStatus" class="status-message"></div>
         </div>
@@ -444,6 +431,10 @@
     </div>
 
     <script>
+        // 写死的仓库配置（公开信息，可安全硬编码）
+        const GITHUB_USERNAME = 'Wcj-Fighting';
+        const GITHUB_REPO = 'my-shop';
+
         let products = [];
         let editingId = null;
         let pendingImageBlob = null;
@@ -456,43 +447,29 @@
 
         // 保存配置
         function saveConfig() {
-            const username = document.getElementById('githubUsername').value.trim();
-            const repo = document.getElementById('githubRepo').value.trim();
             const token = document.getElementById('githubToken').value.trim();
 
-            if (!username || !repo || !token) {
-                showStatus('configStatus', '请填写所有配置项', 'error');
+            if (!token) {
+                showStatus('configStatus', '请填写 Token', 'error');
                 return;
             }
 
-            localStorage.setItem('github_username', username);
-            localStorage.setItem('github_repo', repo);
             localStorage.setItem('github_token', token);
-
-            showStatus('configStatus', '✓ 配置已保存', 'success');
+            showStatus('configStatus', '✓ Token 已保存（仅保存在本浏览器）', 'success');
         }
 
         // 加载配置
         function loadConfig() {
-            const username = localStorage.getItem('github_username') || '';
-            const repo = localStorage.getItem('github_repo') || '';
             const token = localStorage.getItem('github_token') || '';
-
-            document.getElementById('githubUsername').value = username;
-            document.getElementById('githubRepo').value = repo;
             document.getElementById('githubToken').value = token;
         }
 
         // 清除配置
         function clearConfig() {
-            if (confirm('确定要清除 GitHub 配置吗？')) {
-                localStorage.removeItem('github_username');
-                localStorage.removeItem('github_repo');
+            if (confirm('确定要清除 Token 吗？')) {
                 localStorage.removeItem('github_token');
-                document.getElementById('githubUsername').value = '';
-                document.getElementById('githubRepo').value = '';
                 document.getElementById('githubToken').value = '';
-                showStatus('configStatus', '✓ 配置已清除', 'success');
+                showStatus('configStatus', '✓ Token 已清除', 'success');
             }
         }
 
@@ -576,19 +553,17 @@
 
             // 有待上传图片时，先上传到 GitHub 取得 URL
             if (pendingImageBlob) {
-                const username = (localStorage.getItem('github_username') || '').trim();
-                const repo = (localStorage.getItem('github_repo') || '').trim();
                 const token = (localStorage.getItem('github_token') || '').trim();
 
-                if (!username || !repo || !token) {
-                    showStatus('productsStatus', '请先配置 GitHub 信息再提交', 'error');
+                if (!token) {
+                    showStatus('productsStatus', '请先保存 Token', 'error');
                     return;
                 }
 
                 try {
                     const sizeKB = Math.round(pendingImageBlob.size / 1024);
                     showStatus('productsStatus', `正在上传图片（${sizeKB} KB）...`, 'loading');
-                    image = await uploadImageToGitHub(pendingImageBlob, username, repo, token);
+                    image = await uploadImageToGitHub(pendingImageBlob, GITHUB_USERNAME, GITHUB_REPO, token);
                     clearPendingImage();
                 } catch (error) {
                     console.error('Upload failed:', error);
@@ -756,12 +731,10 @@
 
         // 保存到 GitHub
         async function saveToGitHub() {
-            const username = (localStorage.getItem('github_username') || '').trim();
-            const repo = (localStorage.getItem('github_repo') || '').trim();
             const token = (localStorage.getItem('github_token') || '').trim();
 
-            if (!username || !repo || !token) {
-                showStatus('productsStatus', '请先配置 GitHub 信息', 'error');
+            if (!token) {
+                showStatus('productsStatus', '请先保存 Token', 'error');
                 return;
             }
 
@@ -769,7 +742,7 @@
 
             try {
                 // 第一步：获取文件当前的 sha
-                const getUrl = `https://api.github.com/repos/${username}/${repo}/contents/products.json`;
+                const getUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/products.json`;
                 const getResponse = await fetch(getUrl, {
                     headers: {
                         'Authorization': `token ${token}`,
@@ -810,7 +783,7 @@
                 }
 
                 // 第三步：清理孤儿图片（仓库里 images/ 下没被任何商品引用的图）
-                const cleanupCount = await cleanupOrphanImages(username, repo, token);
+                const cleanupCount = await cleanupOrphanImages(GITHUB_USERNAME, GITHUB_REPO, token);
                 const cleanupMsg = cleanupCount > 0 ? `，清理了 ${cleanupCount} 张孤儿图片` : '';
                 showStatus('productsStatus', `✓ 已成功保存到 GitHub${cleanupMsg}！约 1 分钟后刷新展示页可见更新`, 'success');
             } catch (error) {
