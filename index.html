@@ -33,6 +33,48 @@
             min-height: 100vh;
             padding: 16px;
             overflow-x: hidden;
+            overscroll-behavior-y: contain;
+        }
+
+        /* 下拉刷新指示器 */
+        .pull-refresh-indicator {
+            position: fixed;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%) translateY(-60px);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--secondary-bg);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .pull-refresh-indicator.visible {
+            opacity: 1;
+        }
+
+        .pull-refresh-indicator svg {
+            width: 22px;
+            height: 22px;
+            stroke: var(--accent-gold);
+            transition: transform 0.2s ease-out;
+        }
+
+        .pull-refresh-indicator.refreshing svg {
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         /* 页面容器 */
@@ -211,6 +253,14 @@
     </style>
 </head>
 <body>
+    <!-- 下拉刷新指示器 -->
+    <div class="pull-refresh-indicator" id="pullRefreshIndicator">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-3-6.7"/>
+            <polyline points="21 4 21 10 15 10"/>
+        </svg>
+    </div>
+
     <div class="container">
         <!-- 页头 -->
         <div class="header">
@@ -260,9 +310,9 @@
                             src="${product.image}"
                             alt="${product.name}"
                             class="product-image"
-                            loading="lazy"
-                            onerror="this.src='${PLACEHOLDER_IMAGE}'"
-                            crossorigin="anonymous"
+                            data-original="${product.image}"
+                            data-retry="0"
+                            onerror="handleImageError(this)"
                         >
                     </div>
                     <div class="product-info">
@@ -271,6 +321,24 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        // 图片加载失败处理：最多重试 2 次后降级为占位图
+        function handleImageError(img) {
+            const retry = parseInt(img.dataset.retry || '0', 10);
+            const original = img.dataset.original;
+
+            if (retry < 2 && original) {
+                img.dataset.retry = retry + 1;
+                // 加随机参数绕过缓存，错峰重试避免并发竞争
+                const delay = 300 + retry * 500 + Math.random() * 400;
+                setTimeout(() => {
+                    img.src = `${original}${original.includes('?') ? '&' : '?'}r=${Date.now()}`;
+                }, delay);
+            } else {
+                img.onerror = null;
+                img.src = PLACEHOLDER_IMAGE;
+            }
         }
 
         // 显示错误信息
@@ -283,7 +351,88 @@
         document.addEventListener('DOMContentLoaded', async () => {
             const products = await loadProducts();
             renderProducts(products);
+            initPullToRefresh();
         });
+
+        // 下拉刷新
+        function initPullToRefresh() {
+            const indicator = document.getElementById('pullRefreshIndicator');
+            const THRESHOLD = 70;        // 触发刷新的下拉距离
+            const MAX_PULL = 120;         // 最大下拉距离
+            const RESISTANCE = 2.5;       // 下拉阻尼系数
+
+            let startY = 0;
+            let pulling = false;
+            let refreshing = false;
+
+            document.addEventListener('touchstart', (e) => {
+                if (refreshing) return;
+                // 只在页面顶部时启用下拉
+                if (window.scrollY > 0) return;
+                startY = e.touches[0].clientY;
+                pulling = true;
+            }, { passive: true });
+
+            document.addEventListener('touchmove', (e) => {
+                if (!pulling || refreshing) return;
+                const currentY = e.touches[0].clientY;
+                const diff = currentY - startY;
+
+                if (diff <= 0) {
+                    // 向上滑：交还给浏览器
+                    pulling = false;
+                    indicator.classList.remove('visible');
+                    indicator.style.transform = 'translateX(-50%) translateY(-60px)';
+                    return;
+                }
+
+                // 阻尼下拉效果
+                const pulled = Math.min(diff / RESISTANCE, MAX_PULL);
+                indicator.classList.add('visible');
+                const translateY = Math.min(pulled - 60, 20);
+                indicator.style.transform = `translateX(-50%) translateY(${translateY}px)`;
+
+                // 旋转图标随下拉距离变化
+                const rotation = (pulled / THRESHOLD) * 180;
+                indicator.querySelector('svg').style.transform = `rotate(${rotation}deg)`;
+            }, { passive: true });
+
+            document.addEventListener('touchend', async () => {
+                if (!pulling || refreshing) return;
+                pulling = false;
+
+                const transform = indicator.style.transform;
+                const match = transform.match(/translateY\(([-\d.]+)px\)/);
+                const currentY = match ? parseFloat(match[1]) : -60;
+                const pulled = currentY + 60;
+
+                if (pulled >= THRESHOLD) {
+                    // 触发刷新
+                    refreshing = true;
+                    indicator.classList.add('refreshing');
+                    indicator.style.transform = 'translateX(-50%) translateY(20px)';
+                    indicator.querySelector('svg').style.transform = '';
+
+                    try {
+                        const products = await loadProducts();
+                        renderProducts(products);
+                    } catch (e) {
+                        console.error('Refresh failed:', e);
+                    }
+
+                    // 短暂展示完成状态再收起
+                    setTimeout(() => {
+                        indicator.classList.remove('refreshing', 'visible');
+                        indicator.style.transform = 'translateX(-50%) translateY(-60px)';
+                        refreshing = false;
+                    }, 400);
+                } else {
+                    // 未达阈值，收起
+                    indicator.classList.remove('visible');
+                    indicator.style.transform = 'translateX(-50%) translateY(-60px)';
+                }
+            }, { passive: true });
+        }
 
         // 点击卡片的交互
         document.addEventListener('click', (e) => {
