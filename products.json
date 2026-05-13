@@ -2,7 +2,7 @@
   "products": [
     {
       "id": 1,
-      "name": "高级手表",
+      "name": "高级手表test",
       "price": "¥2,899",
       "image": "https://images.unsplash.com/photo-1523170335684-f042fb0c34e4?w=400&h=400&fit=crop"
     },
