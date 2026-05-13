@@ -47,6 +47,12 @@
       "name": "水杯",
       "price": "20",
       "image": "https://raw.githubusercontent.com/Wcj-Fighting/my-shop/main/images/1778694684984-nt8kq0.jpg"
+    },
+    {
+      "id": 9,
+      "name": "火锅",
+      "price": "123",
+      "image": "https://raw.githubusercontent.com/Wcj-Fighting/my-shop/main/images/1778694734149-ethps1.jpg"
     }
   ]
 }
