@@ -1,12 +1,6 @@
 {
   "products": [
     {
-      "id": 1,
-      "name": "高级手表test12",
-      "price": "¥30",
-      "image": "https://images.unsplash.com/photo-1523170335684-f042fb0c34e4?w=400&h=400&fit=crop"
-    },
-    {
       "id": 2,
       "name": "无线耳机",
       "price": "¥1,299",
