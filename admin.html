@@ -428,6 +428,7 @@
                     要让所有访客看到更新，必须点击下方按钮之一：
                 </div>
                 <button class="btn-success" onclick="saveToGitHub()" style="width: 100%; margin-bottom: 10px;">💾 保存到 GitHub（需先配置）</button>
+                <button class="btn-secondary" onclick="migrateToJsdelivr()" style="width: 100%; margin-bottom: 10px;">🚀 一键迁移老图片到 CDN（jsDelivr 加速）</button>
                 <button class="btn-secondary" onclick="exportJson()" style="width: 100%;">📥 导出 products.json（本地测试用）</button>
             </div>
         </div>
@@ -660,7 +661,7 @@
             }
         }
 
-        // 上传单张图片到 GitHub，返回 URL
+        // 上传单张图片到 GitHub，返回 jsDelivr CDN URL（国内访问快且稳定）
         async function uploadImageToGitHub(blob, username, repo, token) {
             const base64 = await blobToBase64(blob);
             const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
@@ -686,7 +687,32 @@
             }
 
             const data = await response.json();
-            return data.content.download_url;
+            return toJsdelivrUrl(data.content.download_url, username, repo);
+        }
+
+        // 把 GitHub raw URL 转成 jsDelivr CDN URL；非 raw URL 原样返回
+        // 输入: https://raw.githubusercontent.com/{user}/{repo}/{branch}/{path}
+        // 输出: https://cdn.jsdelivr.net/gh/{user}/{repo}@{branch}/{path}
+        function toJsdelivrUrl(url, username, repo) {
+            if (!url) return url;
+            const rawPrefix = `https://raw.githubusercontent.com/${username}/${repo}/`;
+            if (url.startsWith(rawPrefix)) {
+                const rest = url.slice(rawPrefix.length); // {branch}/{path}
+                const slashIdx = rest.indexOf('/');
+                if (slashIdx > 0) {
+                    const branch = rest.slice(0, slashIdx);
+                    const path = rest.slice(slashIdx + 1);
+                    return `https://cdn.jsdelivr.net/gh/${username}/${repo}@${branch}/${path}`;
+                }
+            }
+            return url;
+        }
+
+        // 从 URL 提取 images/ 下的文件名（用于孤儿清理比对，兼容 raw 和 jsDelivr 两种格式）
+        function extractImageFilename(url) {
+            if (!url) return null;
+            const match = url.match(/\/images\/([^/?#]+)/);
+            return match ? match[1] : null;
         }
 
         // 压缩图片（最长边限制 + JPEG 质量）
@@ -795,6 +821,27 @@
             }
         }
 
+        // 一键把所有商品的老图片 URL（raw.githubusercontent.com）替换成 jsDelivr URL
+        function migrateToJsdelivr() {
+            const rawPrefix = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/`;
+            let migrated = 0;
+
+            for (const product of products) {
+                if (product.image && product.image.startsWith(rawPrefix)) {
+                    product.image = toJsdelivrUrl(product.image, GITHUB_USERNAME, GITHUB_REPO);
+                    migrated++;
+                }
+            }
+
+            if (migrated === 0) {
+                showStatus('productsStatus', '没有需要迁移的图片（全都已经是 CDN URL 或外部 URL）', 'success');
+                return;
+            }
+
+            renderProductsList();
+            showStatus('productsStatus', `✓ 已将 ${migrated} 张图片切换到 CDN，记得点"保存到 GitHub"让访客看到`, 'success');
+        }
+
         // 导出 JSON（本地测试用）
         function exportJson() {
             const json = JSON.stringify({ products }, null, 2);
@@ -810,9 +857,11 @@
             showStatus('productsStatus', '✓ 已下载 products.json，请替换项目根目录下的同名文件', 'success');
         }
 
-        // 清理仓库 images/ 下没被引用的图片
+        // 清理仓库 images/ 下没被引用的图片（按文件名比对，兼容 raw 和 jsDelivr 两种 URL）
         async function cleanupOrphanImages(username, repo, token) {
-            const referenced = new Set(products.map(p => p.image).filter(Boolean));
+            const referenced = new Set(
+                products.map(p => extractImageFilename(p.image)).filter(Boolean)
+            );
             const listUrl = `https://api.github.com/repos/${username}/${repo}/contents/images`;
 
             let files;
@@ -839,7 +888,7 @@
             let deleted = 0;
             for (const file of files) {
                 if (file.type !== 'file') continue;
-                if (referenced.has(file.download_url)) continue;
+                if (referenced.has(file.name)) continue;
 
                 try {
                     const delRes = await fetch(
