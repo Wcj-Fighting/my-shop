@@ -446,6 +446,7 @@
     <script>
         let products = [];
         let editingId = null;
+        let pendingImageBlob = null;
 
         // 初始化
         document.addEventListener('DOMContentLoaded', () => {
@@ -538,6 +539,7 @@
             const product = products.find(p => p.id === id);
             if (!product) return;
 
+            clearPendingImage();
             editingId = id;
             document.getElementById('formTitle').textContent = '编辑商品';
             document.getElementById('productName').value = product.name;
@@ -557,14 +559,42 @@
         }
 
         // 保存商品
-        function saveProduct() {
+        async function saveProduct() {
             const name = document.getElementById('productName').value.trim();
             const price = document.getElementById('productPrice').value.trim();
-            const image = document.getElementById('productImage').value.trim();
+            let image = document.getElementById('productImage').value.trim();
 
-            if (!name || !price || !image) {
-                showStatus('productsStatus', '请填写所有字段', 'error');
+            if (!name || !price) {
+                showStatus('productsStatus', '请填写名称和价格', 'error');
                 return;
+            }
+
+            if (!image && !pendingImageBlob) {
+                showStatus('productsStatus', '请上传图片或填写图片 URL', 'error');
+                return;
+            }
+
+            // 有待上传图片时，先上传到 GitHub 取得 URL
+            if (pendingImageBlob) {
+                const username = (localStorage.getItem('github_username') || '').trim();
+                const repo = (localStorage.getItem('github_repo') || '').trim();
+                const token = (localStorage.getItem('github_token') || '').trim();
+
+                if (!username || !repo || !token) {
+                    showStatus('productsStatus', '请先配置 GitHub 信息再提交', 'error');
+                    return;
+                }
+
+                try {
+                    const sizeKB = Math.round(pendingImageBlob.size / 1024);
+                    showStatus('productsStatus', `正在上传图片（${sizeKB} KB）...`, 'loading');
+                    image = await uploadImageToGitHub(pendingImageBlob, username, repo, token);
+                    clearPendingImage();
+                } catch (error) {
+                    console.error('Upload failed:', error);
+                    showStatus('productsStatus', `图片上传失败：${error.message}`, 'error');
+                    return;
+                }
             }
 
             if (editingId) {
@@ -573,13 +603,13 @@
                     product.name = name;
                     product.price = price;
                     product.image = image;
-                    showStatus('productsStatus', '✓ 商品已更新（未保存到 GitHub）', 'success');
+                    showStatus('productsStatus', '✓ 商品已更新，别忘了点"保存到 GitHub"', 'success');
                 }
                 editingId = null;
             } else {
                 const newId = Math.max(...products.map(p => p.id), 0) + 1;
                 products.push({ id: newId, name, price, image });
-                showStatus('productsStatus', '✓ 商品已添加（未保存到 GitHub）', 'success');
+                showStatus('productsStatus', '✓ 商品已添加，别忘了点"保存到 GitHub"', 'success');
             }
 
             resetForm();
@@ -589,6 +619,7 @@
         // 重置表单
         function resetForm() {
             editingId = null;
+            clearPendingImage();
             document.getElementById('formTitle').textContent = '添加新商品';
             document.getElementById('productName').value = '';
             document.getElementById('productPrice').value = '';
@@ -596,77 +627,88 @@
             document.getElementById('imagePreview').style.display = 'none';
         }
 
-        // 预览图片
+        // 预览图片（URL 输入）
         function previewImage() {
             const url = document.getElementById('productImage').value.trim();
             const preview = document.getElementById('imagePreview');
             if (url) {
+                clearPendingImage();
                 preview.src = url;
                 preview.style.display = 'block';
                 preview.onerror = () => {
                     preview.style.display = 'none';
                 };
-            } else {
+            } else if (!pendingImageBlob) {
                 preview.style.display = 'none';
             }
         }
 
-        // 处理图片上传（拍照/相册）
+        // 处理图片选择（只压缩 + 预览，不上传 — 点"保存商品"时才上传）
         async function handleImageUpload(file) {
             if (!file) return;
-
-            const username = (localStorage.getItem('github_username') || '').trim();
-            const repo = (localStorage.getItem('github_repo') || '').trim();
-            const token = (localStorage.getItem('github_token') || '').trim();
-
-            if (!username || !repo || !token) {
-                showStatus('productsStatus', '请先配置 GitHub 信息再上传图片', 'error');
-                return;
-            }
-
             try {
-                showStatus('productsStatus', '正在压缩图片...', 'loading');
+                showStatus('productsStatus', '正在处理图片...', 'loading');
                 const compressed = await compressImage(file, 800, 0.85);
+                clearPendingImage();
+                pendingImageBlob = compressed;
+
+                // 用本地 blob URL 展示预览
+                const preview = document.getElementById('imagePreview');
+                preview.src = URL.createObjectURL(compressed);
+                preview.style.display = 'block';
+                preview.onerror = null;
+
+                // 清空 URL 输入框，避免冲突
+                document.getElementById('productImage').value = '';
+
                 const sizeKB = Math.round(compressed.size / 1024);
-
-                showStatus('productsStatus', `正在上传图片（${sizeKB} KB）...`, 'loading');
-                const base64 = await blobToBase64(compressed);
-
-                const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-                const path = `images/${filename}`;
-                const url = `https://api.github.com/repos/${username}/${repo}/contents/${path}`;
-
-                const response = await fetch(url, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `token ${token}`,
-                        'Accept': 'application/vnd.github+json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        message: `Upload image ${filename}`,
-                        content: base64
-                    })
-                });
-
-                if (!response.ok) {
-                    const errText = await response.text();
-                    throw new Error(`${response.status}: ${errText.slice(0, 200)}`);
-                }
-
-                const data = await response.json();
-                const imageUrl = data.content.download_url;
-
-                document.getElementById('productImage').value = imageUrl;
-                previewImage();
-
-                showStatus('productsStatus', `✓ 图片上传成功（${sizeKB} KB）`, 'success');
+                showStatus('productsStatus', `✓ 图片已就绪（${sizeKB} KB），请确认预览并填写名称价格，然后点"保存商品"`, 'success');
             } catch (error) {
-                console.error('Upload failed:', error);
-                showStatus('productsStatus', `图片上传失败：${error.message}`, 'error');
+                console.error('Process failed:', error);
+                showStatus('productsStatus', `图片处理失败：${error.message}`, 'error');
             } finally {
                 document.getElementById('imageFile').value = '';
             }
+        }
+
+        // 清除待上传图片（释放 blob URL）
+        function clearPendingImage() {
+            if (pendingImageBlob) {
+                const preview = document.getElementById('imagePreview');
+                if (preview.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(preview.src);
+                }
+                pendingImageBlob = null;
+            }
+        }
+
+        // 上传单张图片到 GitHub，返回 URL
+        async function uploadImageToGitHub(blob, username, repo, token) {
+            const base64 = await blobToBase64(blob);
+            const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+            const path = `images/${filename}`;
+            const url = `https://api.github.com/repos/${username}/${repo}/contents/${path}`;
+
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github+json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: `Upload image ${filename}`,
+                    content: base64
+                })
+            });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`${response.status}: ${errText.slice(0, 200)}`);
+            }
+
+            const data = await response.json();
+            return data.content.download_url;
         }
 
         // 压缩图片（最长边限制 + JPEG 质量）
