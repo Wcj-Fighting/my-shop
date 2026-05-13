@@ -611,9 +611,9 @@
 
         // 保存到 GitHub
         async function saveToGitHub() {
-            const username = localStorage.getItem('github_username');
-            const repo = localStorage.getItem('github_repo');
-            const token = localStorage.getItem('github_token');
+            const username = (localStorage.getItem('github_username') || '').trim();
+            const repo = (localStorage.getItem('github_repo') || '').trim();
+            const token = (localStorage.getItem('github_token') || '').trim();
 
             if (!username || !repo || !token) {
                 showStatus('productsStatus', '请先配置 GitHub 信息', 'error');
@@ -626,36 +626,45 @@
                 // 第一步：获取文件当前的 sha
                 const getUrl = `https://api.github.com/repos/${username}/${repo}/contents/products.json`;
                 const getResponse = await fetch(getUrl, {
-                    headers: { 'Authorization': `token ${token}` }
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github+json'
+                    }
                 });
 
                 if (!getResponse.ok) {
-                    throw new Error('获取文件信息失败，请检查用户名、仓库名和 token');
+                    const errText = await getResponse.text();
+                    console.error('GET failed:', getResponse.status, errText);
+                    throw new Error(`GET ${getResponse.status}: ${errText.slice(0, 200)}`);
                 }
 
                 const fileData = await getResponse.json();
                 const sha = fileData.sha;
 
-                // 第二步：更新文件
-                const content = btoa(JSON.stringify({ products }, null, 2));
+                // 第二步：更新文件（UTF-8 安全的 Base64 编码，支持中文）
+                const jsonString = JSON.stringify({ products }, null, 2);
+                const content = btoa(unescape(encodeURIComponent(jsonString)));
                 const putResponse = await fetch(getUrl, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github+json',
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        message: 'Update products',
+                        message: 'Update products via admin',
                         content: content,
                         sha: sha
                     })
                 });
 
                 if (!putResponse.ok) {
-                    throw new Error('保存失败，请检查 token 权限');
+                    const errText = await putResponse.text();
+                    console.error('PUT failed:', putResponse.status, errText);
+                    throw new Error(`PUT ${putResponse.status}: ${errText.slice(0, 200)}`);
                 }
 
-                showStatus('productsStatus', '✓ 已成功保存到 GitHub！', 'success');
+                showStatus('productsStatus', '✓ 已成功保存到 GitHub！约 1 分钟后刷新展示页可见更新', 'success');
             } catch (error) {
                 console.error('Error saving to GitHub:', error);
                 showStatus('productsStatus', `保存失败：${error.message}`, 'error');
