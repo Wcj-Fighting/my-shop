@@ -35,6 +35,12 @@
       "name": "背包",
       "price": "¥799",
       "image": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=400&fit=crop"
+    },
+    {
+      "id": 7,
+      "name": "头像",
+      "price": "500",
+      "image": "https://raw.githubusercontent.com/Wcj-Fighting/my-shop/main/images/1778694199570-k2i0jr.jpg"
     }
   ]
 }
