@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品管理后台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-bg: #0f0f0f;
+            --secondary-bg: #1a1a1a;
+            --accent-gold: #d4af37;
+            --accent-light: #e8dcc8;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --success: #51cf66;
+            --error: #ff6b6b;
+            --warning: #ffd43b;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--primary-bg) 0%, #1a1a2e 100%);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            color: var(--accent-light);
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* 配置区 */
+        .config-section {
+            background: var(--secondary-bg);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(212, 175, 55, 0.2);
+        }
+
+        .config-section h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: var(--accent-gold);
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--accent-gold);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .config-help {
+            background: rgba(212, 175, 55, 0.1);
+            border-left: 3px solid var(--accent-gold);
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+
+        .config-help a {
+            color: var(--accent-gold);
+            text-decoration: none;
+        }
+
+        .config-help a:hover {
+            text-decoration: underline;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: var(--accent-gold);
+            color: var(--primary-bg);
+        }
+
+        .btn-primary:hover {
+            background: #e8dcc8;
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: rgba(212, 175, 55, 0.2);
+            color: var(--accent-gold);
+            border: 1px solid var(--accent-gold);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(212, 175, 55, 0.3);
+        }
+
+        .btn-danger {
+            background: var(--error);
+            color: white;
+            font-size: 12px;
+            padding: 6px 12px;
+        }
+
+        .btn-danger:hover {
+            background: #ff5252;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: var(--primary-bg);
+        }
+
+        .btn-success:hover {
+            background: #40c057;
+        }
+
+        /* 状态提示 */
+        .status-message {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status-message.show {
+            display: block;
+        }
+
+        .status-message.success {
+            background: rgba(81, 207, 102, 0.2);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .status-message.error {
+            background: rgba(255, 107, 107, 0.2);
+            color: var(--error);
+            border: 1px solid var(--error);
+        }
+
+        .status-message.loading {
+            background: rgba(212, 175, 55, 0.2);
+            color: var(--accent-gold);
+            border: 1px solid var(--accent-gold);
+        }
+
+        /* 商品管理区 */
+        .products-section {
+            background: var(--secondary-bg);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid rgba(212, 175, 55, 0.2);
+        }
+
+        .products-section h2 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: var(--accent-gold);
+        }
+
+        /* 商品列表 */
+        .products-list {
+            margin-bottom: 30px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .product-item {
+            display: grid;
+            grid-template-columns: 60px 1fr 100px 100px 80px;
+            gap: 12px;
+            align-items: center;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border: 1px solid rgba(212, 175, 55, 0.1);
+        }
+
+        .product-item img {
+            width: 60px;
+            height: 60px;
+            border-radius: 4px;
+            object-fit: cover;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .product-item-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .product-item-name {
+            font-size: 14px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .product-item-price {
+            font-size: 12px;
+            color: var(--accent-gold);
+        }
+
+        .product-item-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .product-item-actions button {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* 表单区 */
+        .form-section {
+            border-top: 1px solid rgba(212, 175, 55, 0.2);
+            padding-top: 20px;
+        }
+
+        .form-section h3 {
+            font-size: 16px;
+            margin-bottom: 16px;
+            color: var(--accent-light);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .form-row.full {
+            grid-template-columns: 1fr;
+        }
+
+        .preview-image {
+            width: 100px;
+            height: 100px;
+            border-radius: 6px;
+            object-fit: cover;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            margin-top: 8px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state p {
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .product-item {
+                grid-template-columns: 50px 1fr 60px;
+                gap: 8px;
+            }
+
+            .product-item-actions {
+                grid-column: 3;
+                flex-direction: column;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>商品管理后台</h1>
+            <p>通过 GitHub API 管理您的商品数据</p>
+        </div>
+
+        <!-- 配置区 -->
+        <div class="config-section">
+            <h2>GitHub 配置</h2>
+            <div class="config-help">
+                <strong>首次使用？</strong> 需要配置 GitHub 账号信息来保存商品数据。
+                <br>1. 访问 <a href="https://github.com/settings/tokens" target="_blank">GitHub Token 页面</a>
+                <br>2. 点击 "Generate new token (classic)"
+                <br>3. 勾选 "repo" 权限，生成 token
+                <br>4. 复制 token 粘贴到下方，仅在您的浏览器本地保存
+            </div>
+            <div class="config-grid">
+                <div class="form-group">
+                    <label>GitHub 用户名</label>
+                    <input type="text" id="githubUsername" placeholder="例：octocat">
+                </div>
+                <div class="form-group">
+                    <label>仓库名</label>
+                    <input type="text" id="githubRepo" placeholder="例：my-shop">
+                </div>
+                <div class="form-group" style="grid-column: 1/-1;">
+                    <label>Personal Access Token</label>
+                    <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxx">
+                </div>
+            </div>
+            <div class="button-group">
+                <button class="btn-primary" onclick="saveConfig()">保存配置</button>
+                <button class="btn-secondary" onclick="clearConfig()">清除配置</button>
+            </div>
+            <div id="configStatus" class="status-message"></div>
+        </div>
+
+        <!-- 商品管理区 -->
+        <div class="products-section">
+            <h2>商品管理</h2>
+            <div id="productsStatus" class="status-message"></div>
+
+            <!-- 商品列表 -->
+            <div id="productsList" class="products-list"></div>
+
+            <!-- 添加/编辑表单 -->
+            <div class="form-section">
+                <h3 id="formTitle">添加新商品</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>商品名称</label>
+                        <input type="text" id="productName" placeholder="例：高级手表">
+                    </div>
+                    <div class="form-group">
+                        <label>价格</label>
+                        <input type="text" id="productPrice" placeholder="例：¥2,899">
+                    </div>
+                </div>
+                <div class="form-row full">
+                    <div class="form-group">
+                        <label>图片 URL</label>
+                        <input type="text" id="productImage" placeholder="https://example.com/image.jpg" oninput="previewImage()">
+                        <img id="imagePreview" class="preview-image" style="display: none;">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn-primary" onclick="saveProduct()">保存商品</button>
+                    <button class="btn-secondary" onclick="resetForm()">取消编辑</button>
+                </div>
+            </div>
+
+            <!-- 持久化保存 -->
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(212, 175, 55, 0.2);">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.6;">
+                    <strong style="color: var(--accent-gold);">⚠ 重要：</strong>上方"保存商品"只改浏览器临时数据。<br>
+                    要让所有访客看到更新，必须点击下方按钮之一：
+                </div>
+                <button class="btn-success" onclick="saveToGitHub()" style="width: 100%; margin-bottom: 10px;">💾 保存到 GitHub（需先配置）</button>
+                <button class="btn-secondary" onclick="exportJson()" style="width: 100%;">📥 导出 products.json（本地测试用）</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let products = [];
+        let editingId = null;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadConfig();
+            loadProducts();
+        });
+
+        // 保存配置
+        function saveConfig() {
+            const username = document.getElementById('githubUsername').value.trim();
+            const repo = document.getElementById('githubRepo').value.trim();
+            const token = document.getElementById('githubToken').value.trim();
+
+            if (!username || !repo || !token) {
+                showStatus('configStatus', '请填写所有配置项', 'error');
+                return;
+            }
+
+            localStorage.setItem('github_username', username);
+            localStorage.setItem('github_repo', repo);
+            localStorage.setItem('github_token', token);
+
+            showStatus('configStatus', '✓ 配置已保存', 'success');
+        }
+
+        // 加载配置
+        function loadConfig() {
+            const username = localStorage.getItem('github_username') || '';
+            const repo = localStorage.getItem('github_repo') || '';
+            const token = localStorage.getItem('github_token') || '';
+
+            document.getElementById('githubUsername').value = username;
+            document.getElementById('githubRepo').value = repo;
+            document.getElementById('githubToken').value = token;
+        }
+
+        // 清除配置
+        function clearConfig() {
+            if (confirm('确定要清除 GitHub 配置吗？')) {
+                localStorage.removeItem('github_username');
+                localStorage.removeItem('github_repo');
+                localStorage.removeItem('github_token');
+                document.getElementById('githubUsername').value = '';
+                document.getElementById('githubRepo').value = '';
+                document.getElementById('githubToken').value = '';
+                showStatus('configStatus', '✓ 配置已清除', 'success');
+            }
+        }
+
+        // 加载商品
+        async function loadProducts() {
+            try {
+                const response = await fetch('products.json');
+                if (!response.ok) throw new Error('Failed to load products');
+                const data = await response.json();
+                products = data.products || [];
+                renderProductsList();
+            } catch (error) {
+                console.error('Error loading products:', error);
+                showStatus('productsStatus', '加载商品失败', 'error');
+            }
+        }
+
+        // 渲染商品列表
+        function renderProductsList() {
+            const list = document.getElementById('productsList');
+            if (products.length === 0) {
+                list.innerHTML = '<div class="empty-state"><p>暂无商品，添加第一个商品吧</p></div>';
+                return;
+            }
+
+            list.innerHTML = products.map(product => `
+                <div class="product-item">
+                    <img src="${product.image}" alt="${product.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%231a1a1a%22 width=%22100%22 height=%22100%22/%3E%3C/svg%3E'">
+                    <div class="product-item-info">
+                        <div class="product-item-name">${product.name}</div>
+                        <div class="product-item-price">${product.price}</div>
+                    </div>
+                    <div style="text-align: center; font-size: 12px; color: var(--text-secondary);">ID: ${product.id}</div>
+                    <div class="product-item-actions">
+                        <button class="btn-secondary" onclick="editProduct(${product.id})">编辑</button>
+                        <button class="btn-danger" onclick="deleteProduct(${product.id})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 编辑商品
+        function editProduct(id) {
+            const product = products.find(p => p.id === id);
+            if (!product) return;
+
+            editingId = id;
+            document.getElementById('formTitle').textContent = '编辑商品';
+            document.getElementById('productName').value = product.name;
+            document.getElementById('productPrice').value = product.price;
+            document.getElementById('productImage').value = product.image;
+            previewImage();
+            window.scrollTo({ top: document.querySelector('.form-section').offsetTop - 100, behavior: 'smooth' });
+        }
+
+        // 删除商品
+        function deleteProduct(id) {
+            if (confirm('确定要删除这个商品吗？')) {
+                products = products.filter(p => p.id !== id);
+                renderProductsList();
+                showStatus('productsStatus', '✓ 商品已删除（未保存到 GitHub）', 'success');
+            }
+        }
+
+        // 保存商品
+        function saveProduct() {
+            const name = document.getElementById('productName').value.trim();
+            const price = document.getElementById('productPrice').value.trim();
+            const image = document.getElementById('productImage').value.trim();
+
+            if (!name || !price || !image) {
+                showStatus('productsStatus', '请填写所有字段', 'error');
+                return;
+            }
+
+            if (editingId) {
+                const product = products.find(p => p.id === editingId);
+                if (product) {
+                    product.name = name;
+                    product.price = price;
+                    product.image = image;
+                    showStatus('productsStatus', '✓ 商品已更新（未保存到 GitHub）', 'success');
+                }
+                editingId = null;
+            } else {
+                const newId = Math.max(...products.map(p => p.id), 0) + 1;
+                products.push({ id: newId, name, price, image });
+                showStatus('productsStatus', '✓ 商品已添加（未保存到 GitHub）', 'success');
+            }
+
+            resetForm();
+            renderProductsList();
+        }
+
+        // 重置表单
+        function resetForm() {
+            editingId = null;
+            document.getElementById('formTitle').textContent = '添加新商品';
+            document.getElementById('productName').value = '';
+            document.getElementById('productPrice').value = '';
+            document.getElementById('productImage').value = '';
+            document.getElementById('imagePreview').style.display = 'none';
+        }
+
+        // 预览图片
+        function previewImage() {
+            const url = document.getElementById('productImage').value.trim();
+            const preview = document.getElementById('imagePreview');
+            if (url) {
+                preview.src = url;
+                preview.style.display = 'block';
+                preview.onerror = () => {
+                    preview.style.display = 'none';
+                };
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        // 保存到 GitHub
+        async function saveToGitHub() {
+            const username = localStorage.getItem('github_username');
+            const repo = localStorage.getItem('github_repo');
+            const token = localStorage.getItem('github_token');
+
+            if (!username || !repo || !token) {
+                showStatus('productsStatus', '请先配置 GitHub 信息', 'error');
+                return;
+            }
+
+            showStatus('productsStatus', '正在保存...', 'loading');
+
+            try {
+                // 第一步：获取文件当前的 sha
+                const getUrl = `https://api.github.com/repos/${username}/${repo}/contents/products.json`;
+                const getResponse = await fetch(getUrl, {
+                    headers: { 'Authorization': `token ${token}` }
+                });
+
+                if (!getResponse.ok) {
+                    throw new Error('获取文件信息失败，请检查用户名、仓库名和 token');
+                }
+
+                const fileData = await getResponse.json();
+                const sha = fileData.sha;
+
+                // 第二步：更新文件
+                const content = btoa(JSON.stringify({ products }, null, 2));
+                const putResponse = await fetch(getUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: 'Update products',
+                        content: content,
+                        sha: sha
+                    })
+                });
+
+                if (!putResponse.ok) {
+                    throw new Error('保存失败，请检查 token 权限');
+                }
+
+                showStatus('productsStatus', '✓ 已成功保存到 GitHub！', 'success');
+            } catch (error) {
+                console.error('Error saving to GitHub:', error);
+                showStatus('productsStatus', `保存失败：${error.message}`, 'error');
+            }
+        }
+
+        // 导出 JSON（本地测试用）
+        function exportJson() {
+            const json = JSON.stringify({ products }, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'products.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showStatus('productsStatus', '✓ 已下载 products.json，请替换项目根目录下的同名文件', 'success');
+        }
+
+        // 显示状态信息
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status-message show ${type}`;
+            if (type !== 'loading') {
+                setTimeout(() => {
+                    element.classList.remove('show');
+                }, 4000);
+            }
+        }
+    </script>
+</body>
+</html>

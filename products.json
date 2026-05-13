@@ -1,0 +1,40 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "name": "高级手表",
+      "price": "¥2,899",
+      "image": "https://images.unsplash.com/photo-1523170335684-f042fb0c34e4?w=400&h=400&fit=crop"
+    },
+    {
+      "id": 2,
+      "name": "无线耳机",
+      "price": "¥1,299",
+      "image": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop"
+    },
+    {
+      "id": 3,
+      "name": "皮质钱包",
+      "price": "¥599",
+      "image": "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&h=400&fit=crop"
+    },
+    {
+      "id": 4,
+      "name": "运动鞋",
+      "price": "¥899",
+      "image": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=400&fit=crop"
+    },
+    {
+      "id": 5,
+      "name": "太阳镜",
+      "price": "¥1,199",
+      "image": "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=400&h=400&fit=crop"
+    },
+    {
+      "id": 6,
+      "name": "背包",
+      "price": "¥799",
+      "image": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=400&fit=crop"
+    }
+  ]
+}
