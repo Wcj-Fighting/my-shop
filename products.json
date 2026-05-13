@@ -10,25 +10,25 @@
       "id": 7,
       "name": "头像",
       "price": "500",
-      "image": "https://raw.githubusercontent.com/Wcj-Fighting/my-shop/main/images/1778694199570-k2i0jr.jpg"
+      "image": "https://cdn.jsdelivr.net/gh/Wcj-Fighting/my-shop@main/images/1778694199570-k2i0jr.jpg"
     },
     {
       "id": 8,
       "name": "水杯",
       "price": "20",
-      "image": "https://raw.githubusercontent.com/Wcj-Fighting/my-shop/main/images/1778694684984-nt8kq0.jpg"
+      "image": "https://cdn.jsdelivr.net/gh/Wcj-Fighting/my-shop@main/images/1778694684984-nt8kq0.jpg"
     },
     {
       "id": 9,
       "name": "火锅",
       "price": "123",
-      "image": "https://raw.githubusercontent.com/Wcj-Fighting/my-shop/main/images/1778694734149-ethps1.jpg"
+      "image": "https://cdn.jsdelivr.net/gh/Wcj-Fighting/my-shop@main/images/1778694734149-ethps1.jpg"
     },
     {
       "id": 10,
       "name": "鼠标",
       "price": "1234",
-      "image": "https://raw.githubusercontent.com/Wcj-Fighting/my-shop/main/images/1778694977737-4slcex.jpg"
+      "image": "https://cdn.jsdelivr.net/gh/Wcj-Fighting/my-shop@main/images/1778694977737-4slcex.jpg"
     }
   ]
 }
