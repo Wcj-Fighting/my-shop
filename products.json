@@ -29,6 +29,12 @@
       "name": "鼠标",
       "price": "1234",
       "image": "https://cdn.jsdelivr.net/gh/Wcj-Fighting/my-shop@main/images/1778694977737-4slcex.jpg"
+    },
+    {
+      "id": 11,
+      "name": "电子秤",
+      "price": "400",
+      "image": "https://cdn.jsdelivr.net/gh/Wcj-Fighting/my-shop@main/images/1778727709414-ne73xi.jpg"
     }
   ]
 }
