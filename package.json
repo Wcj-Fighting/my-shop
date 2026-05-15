@@ -1,0 +1,13 @@
+{
+  "name": "my-shop",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev-server.js",
+    "test": "node --test tests/"
+  },
+  "devDependencies": {
+    "browser-sync": "^3.0.2",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
