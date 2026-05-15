@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const net = require('node:net');
 const { findOpenPort, pickLanIp } = require('../server/net');
+const { createGitSync } = require('../server/git-sync');
 
 test('findOpenPort returns the start port when free', async () => {
   const port = await findOpenPort(50000, 50020);
@@ -60,4 +61,64 @@ test('pickLanIp skips virtual adapters by name', () => {
 
 test('pickLanIp returns null when no candidate', () => {
   assert.strictEqual(pickLanIp({}), null);
+});
+
+test('createGitSync disables auto-sync on non-test branch', async () => {
+  const calls = [];
+  const fakeSpawn = (cmd, args) => {
+    calls.push([cmd, ...args].join(' '));
+    return { on: (ev, cb) => ev === 'close' && setImmediate(() => cb(0)) };
+  };
+  const gs = createGitSync({ rootDir: '/tmp', branch: 'main', spawn: fakeSpawn });
+  assert.strictEqual(gs.enabled, false);
+  await gs.sync(['products.json'], 'msg');
+  assert.deepStrictEqual(calls, []);
+});
+
+test('createGitSync runs add/commit/push on test branch', async () => {
+  const calls = [];
+  const fakeSpawn = (cmd, args) => {
+    calls.push([cmd, args]);
+    return { on: (ev, cb) => ev === 'close' && setImmediate(() => cb(0)) };
+  };
+  const gs = createGitSync({ rootDir: '/tmp', branch: 'test', spawn: fakeSpawn });
+  assert.strictEqual(gs.enabled, true);
+  const result = await gs.sync(['products.json', 'images/x.jpg'], 'chore: msg');
+  assert.strictEqual(result.synced, true);
+  assert.deepStrictEqual(calls[0], ['git', ['add', '--', 'products.json', 'images/x.jpg']]);
+  assert.deepStrictEqual(calls[1], ['git', ['commit', '-m', 'chore: msg']]);
+  assert.deepStrictEqual(calls[2], ['git', ['push', 'origin', 'test']]);
+});
+
+test('createGitSync serializes concurrent syncs', async () => {
+  const order = [];
+  const fakeSpawn = (cmd, args) => {
+    const tag = `${args[0]}`;
+    order.push(`start:${tag}`);
+    return { on: (ev, cb) => {
+      if (ev === 'close') setTimeout(() => { order.push(`end:${tag}`); cb(0); }, 5);
+    }};
+  };
+  const gs = createGitSync({ rootDir: '/tmp', branch: 'test', spawn: fakeSpawn });
+  await Promise.all([
+    gs.sync(['a'], 'm1'),
+    gs.sync(['b'], 'm2'),
+  ]);
+  // first sync (add->commit->push) must complete before second starts
+  assert.strictEqual(order[0], 'start:add');
+  assert.strictEqual(order[1], 'end:add');
+});
+
+test('createGitSync returns synced:false when push fails but does not throw', async () => {
+  const fakeSpawn = (cmd, args) => ({
+    on: (ev, cb) => {
+      if (ev === 'close') {
+        const code = args[0] === 'push' ? 1 : 0;
+        setImmediate(() => cb(code));
+      }
+    }
+  });
+  const gs = createGitSync({ rootDir: '/tmp', branch: 'test', spawn: fakeSpawn });
+  const result = await gs.sync(['x'], 'm');
+  assert.strictEqual(result.synced, false);
 });
