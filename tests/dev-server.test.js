@@ -1,8 +1,33 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const net = require('node:net');
+const http = require('node:http');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const os = require('node:os');
 const { findOpenPort, pickLanIp } = require('../server/net');
 const { createGitSync } = require('../server/git-sync');
+const { createApiHandler } = require('../server/routes');
+
+async function withServer(handler, fn) {
+  const server = http.createServer((req, res) => handler(req, res, () => {
+    res.statusCode = 404; res.end();
+  }));
+  await new Promise(r => server.listen(0, r));
+  const port = server.address().port;
+  try { await fn(port); } finally { await new Promise(r => server.close(r)); }
+}
+
+function request(port, opts, body) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, ...opts }, (res) => {
+      let data = ''; res.on('data', c => data += c); res.on('end', () => resolve({ status: res.statusCode, body: data }));
+    });
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
 
 test('findOpenPort returns the start port when free', async () => {
   const port = await findOpenPort(50000, 50020);
@@ -121,4 +146,97 @@ test('createGitSync returns synced:false when push fails but does not throw', as
   const gs = createGitSync({ rootDir: '/tmp', branch: 'test', spawn: fakeSpawn });
   const result = await gs.sync(['x'], 'm');
   assert.strictEqual(result.synced, false);
+});
+
+test('GET /api/health returns mode and branch', async () => {
+  const fakeGitSync = { enabled: true, sync: async () => ({ synced: true }) };
+  const handler = createApiHandler({ rootDir: os.tmpdir(), gitSync: fakeGitSync, branch: 'test' });
+  await withServer(handler, async (port) => {
+    const res = await request(port, { method: 'GET', path: '/api/health' });
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.strictEqual(json.ok, true);
+    assert.strictEqual(json.mode, 'local');
+    assert.strictEqual(json.branch, 'test');
+    assert.strictEqual(json.autoSync, true);
+  });
+});
+
+test('POST /api/save-products writes file and triggers sync', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'shop-'));
+  const synced = [];
+  const fakeGitSync = { enabled: true, sync: async (paths, msg) => { synced.push({ paths, msg }); return { synced: true }; } };
+  const handler = createApiHandler({ rootDir: tmp, gitSync: fakeGitSync, branch: 'test' });
+  await withServer(handler, async (port) => {
+    const body = JSON.stringify({ products: [{ id: 1, name: 'x', price: '1', image: 'images/x.jpg' }] });
+    const res = await request(port, {
+      method: 'POST', path: '/api/save-products',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+    }, body);
+    assert.strictEqual(res.status, 200);
+    const written = await fs.readFile(path.join(tmp, 'products.json'), 'utf8');
+    assert.strictEqual(JSON.parse(written).products[0].name, 'x');
+    assert.deepStrictEqual(synced[0].paths, ['products.json']);
+    assert.match(synced[0].msg, /update products/);
+  });
+  await fs.rm(tmp, { recursive: true, force: true });
+});
+
+test('POST /api/save-products rejects invalid JSON', async () => {
+  const handler = createApiHandler({ rootDir: os.tmpdir(), gitSync: { enabled: false, sync: async () => ({}) }, branch: 'test' });
+  await withServer(handler, async (port) => {
+    const body = '{not json';
+    const res = await request(port, {
+      method: 'POST', path: '/api/save-products',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+    }, body);
+    assert.strictEqual(res.status, 400);
+  });
+});
+
+test('POST /api/upload writes image file and returns url', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'shop-'));
+  await fs.mkdir(path.join(tmp, 'images'), { recursive: true });
+  const synced = [];
+  const fakeGitSync = { enabled: true, sync: async (paths, msg) => { synced.push({ paths, msg }); return { synced: true }; } };
+  const handler = createApiHandler({ rootDir: tmp, gitSync: fakeGitSync, branch: 'test' });
+
+  // 1x1 PNG
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABh6FO1AAAAABJRU5ErkJggg==', 'base64');
+  const boundary = '----testbound';
+  const head = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="t.png"\r\nContent-Type: image/png\r\n\r\n`;
+  const tail = `\r\n--${boundary}--\r\n`;
+  const body = Buffer.concat([Buffer.from(head), png, Buffer.from(tail)]);
+
+  await withServer(handler, async (port) => {
+    const res = await request(port, {
+      method: 'POST', path: '/api/upload',
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length }
+    }, body);
+    assert.strictEqual(res.status, 200);
+    const json = JSON.parse(res.body);
+    assert.match(json.url, /^images\/[\w.\-]+\.png$/);
+    const filename = json.url.replace('images/', '');
+    const stat = await fs.stat(path.join(tmp, 'images', filename));
+    assert.strictEqual(stat.size, png.length);
+    assert.deepStrictEqual(synced[0].paths, [json.url]);
+  });
+  await fs.rm(tmp, { recursive: true, force: true });
+});
+
+test('POST /api/upload rejects non-image content-type', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'shop-'));
+  const handler = createApiHandler({ rootDir: tmp, gitSync: { enabled: false, sync: async () => ({}) }, branch: 'test' });
+  const boundary = '----b';
+  const body = Buffer.from(
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="t.txt"\r\nContent-Type: text/plain\r\n\r\nhello\r\n--${boundary}--\r\n`
+  );
+  await withServer(handler, async (port) => {
+    const res = await request(port, {
+      method: 'POST', path: '/api/upload',
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length }
+    }, body);
+    assert.strictEqual(res.status, 400);
+  });
+  await fs.rm(tmp, { recursive: true, force: true });
 });
