@@ -188,6 +188,115 @@
             letter-spacing: 1px;
         }
 
+        body.modal-open {
+            overflow: hidden;
+        }
+
+        .image-preview-overlay,
+        .download-confirm-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.88);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .image-preview-overlay.active,
+        .download-confirm-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .image-preview-image {
+            max-width: min(92vw, 900px);
+            max-height: 84vh;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+        }
+
+        .image-preview-close {
+            position: absolute;
+            top: max(18px, env(safe-area-inset-top));
+            right: max(18px, env(safe-area-inset-right));
+            width: 44px;
+            height: 44px;
+            border: 1px solid rgba(212, 175, 55, 0.45);
+            border-radius: 50%;
+            background: rgba(26, 26, 26, 0.88);
+            color: var(--accent-light);
+            font-size: 28px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .download-confirm-dialog {
+            width: min(88vw, 340px);
+            background: rgba(26, 26, 26, 0.96);
+            border: 1px solid rgba(212, 175, 55, 0.35);
+            border-radius: 10px;
+            padding: 22px;
+            box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+            text-align: center;
+        }
+
+        .download-confirm-eyebrow {
+            color: var(--accent-gold);
+            font-size: 12px;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .download-confirm-dialog h2 {
+            color: var(--accent-light);
+            font-size: 22px;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+
+        .download-confirm-copy {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .download-confirm-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .download-confirm-actions button {
+            min-height: 42px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .download-confirm-actions button:active {
+            transform: scale(0.98);
+        }
+
+        .download-confirm-cancel {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .download-confirm-primary {
+            background: var(--accent-gold);
+            color: var(--primary-bg);
+            font-weight: 600;
+        }
+
         /* 加载动画 */
         @keyframes fadeInDown {
             from {
@@ -261,6 +370,23 @@
         </svg>
     </div>
 
+    <div class="image-preview-overlay" id="imagePreviewOverlay" hidden>
+        <button class="image-preview-close" id="imagePreviewClose" type="button" aria-label="关闭预览">×</button>
+        <img id="imagePreviewImage" class="image-preview-image" alt="">
+    </div>
+
+    <div class="download-confirm-overlay" id="downloadConfirmOverlay" hidden>
+        <div class="download-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="downloadConfirmTitle">
+            <p class="download-confirm-eyebrow">图片操作</p>
+            <h2 id="downloadConfirmTitle">下载图片</h2>
+            <p class="download-confirm-copy">是否下载这张图片？</p>
+            <div class="download-confirm-actions">
+                <button class="download-confirm-cancel" id="downloadCancelButton" type="button">取消</button>
+                <button class="download-confirm-primary" id="downloadConfirmButton" type="button">下载图片</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <!-- 页头 -->
         <div class="header">
@@ -281,6 +407,212 @@
 
     <script>
         const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%231a1a1a" width="400" height="400"/%3E%3Ctext x="50%25" y="50%25" font-size="16" fill="%23666" text-anchor="middle" dy=".3em"%3E图片加载失败%3C/text%3E%3C/svg%3E';
+        const LONG_PRESS_DELAY = 600;
+        const LONG_PRESS_MOVE_TOLERANCE = 12;
+
+        let longPressTimer = null;
+        let longPressStartX = 0;
+        let longPressStartY = 0;
+        let suppressNextImageClick = false;
+        let pendingDownloadImage = null;
+        let imageInteractionsReady = false;
+
+        function escapeAttribute(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function getImageContext(img) {
+            if (!img) return null;
+            const renderedSrc = img.currentSrc || img.src || '';
+            if (renderedSrc.startsWith('data:image/svg+xml')) return null;
+
+            const src = img.dataset.original || renderedSrc;
+            if (!src || src.startsWith('data:image/svg+xml')) return null;
+
+            const card = img.closest('.product-card');
+            const productName = img.dataset.productName || card?.querySelector('.product-name')?.textContent || img.alt || 'product-image';
+            return { src, name: productName.trim() || 'product-image' };
+        }
+
+        function sanitizeFilename(name) {
+            const cleaned = String(name || 'product-image')
+                .replace(/[\\/:*?"<>|\u0000-\u001F]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            return cleaned || 'product-image';
+        }
+
+        function getImageExtension(src) {
+            try {
+                const url = new URL(src, window.location.href);
+                const match = url.pathname.match(/\.(avif|gif|jpe?g|png|webp)$/i);
+                return match ? `.${match[1].toLowerCase().replace('jpeg', 'jpg')}` : '.jpg';
+            } catch (error) {
+                return '.jpg';
+            }
+        }
+
+        function getDownloadFilename(context) {
+            return `${sanitizeFilename(context.name)}${getImageExtension(context.src)}`;
+        }
+
+        function setModalOpen(open) {
+            document.body.classList.toggle('modal-open', open);
+        }
+
+        function showOverlay(overlay) {
+            if (!overlay) return;
+            overlay.hidden = false;
+            requestAnimationFrame(() => overlay.classList.add('active'));
+        }
+
+        function hideOverlay(overlay) {
+            if (!overlay) return;
+            overlay.classList.remove('active');
+            overlay.hidden = true;
+        }
+
+        function openImagePreviewFromImage(img) {
+            const context = getImageContext(img);
+            if (!context) return;
+
+            const overlay = document.getElementById('imagePreviewOverlay');
+            const previewImage = document.getElementById('imagePreviewImage');
+            previewImage.src = context.src;
+            previewImage.alt = context.name;
+            showOverlay(overlay);
+            setModalOpen(true);
+        }
+
+        function closeImagePreview() {
+            const overlay = document.getElementById('imagePreviewOverlay');
+            const previewImage = document.getElementById('imagePreviewImage');
+            hideOverlay(overlay);
+            previewImage.removeAttribute('src');
+            setModalOpen(!document.getElementById('downloadConfirmOverlay').hidden);
+        }
+
+        function openDownloadConfirmFromImage(img) {
+            const context = getImageContext(img);
+            if (!context) return;
+
+            pendingDownloadImage = context;
+            showOverlay(document.getElementById('downloadConfirmOverlay'));
+            setModalOpen(true);
+        }
+
+        function closeDownloadConfirm() {
+            pendingDownloadImage = null;
+            hideOverlay(document.getElementById('downloadConfirmOverlay'));
+            setModalOpen(!document.getElementById('imagePreviewOverlay').hidden);
+        }
+
+        function triggerImageDownload(context) {
+            const link = document.createElement('a');
+            link.href = context.src;
+            link.download = getDownloadFilename(context);
+            link.target = '_blank';
+            link.rel = 'noopener';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+
+        async function downloadPendingImage() {
+            if (!pendingDownloadImage) return;
+            const context = pendingDownloadImage;
+            closeDownloadConfirm();
+
+            try {
+                triggerImageDownload(context);
+            } catch (error) {
+                window.open(context.src, '_blank', 'noopener');
+            }
+        }
+
+        function clearLongPressTimer() {
+            if (!longPressTimer) return;
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+
+        function initImageInteractions() {
+            if (imageInteractionsReady) return;
+            imageInteractionsReady = true;
+
+            const previewOverlay = document.getElementById('imagePreviewOverlay');
+            const previewClose = document.getElementById('imagePreviewClose');
+            const confirmOverlay = document.getElementById('downloadConfirmOverlay');
+            const cancelButton = document.getElementById('downloadCancelButton');
+            const confirmButton = document.getElementById('downloadConfirmButton');
+
+            document.addEventListener('pointerdown', (e) => {
+                const img = e.target.closest('.product-image');
+                if (!img || (e.pointerType === 'mouse' && e.button !== 0)) return;
+
+                clearLongPressTimer();
+                longPressStartX = e.clientX;
+                longPressStartY = e.clientY;
+                longPressTimer = setTimeout(() => {
+                    longPressTimer = null;
+                    suppressNextImageClick = true;
+                    openDownloadConfirmFromImage(img);
+                }, LONG_PRESS_DELAY);
+            }, { passive: true });
+
+            document.addEventListener('pointermove', (e) => {
+                if (!longPressTimer) return;
+                const diffX = Math.abs(e.clientX - longPressStartX);
+                const diffY = Math.abs(e.clientY - longPressStartY);
+                if (diffX > LONG_PRESS_MOVE_TOLERANCE || diffY > LONG_PRESS_MOVE_TOLERANCE) {
+                    clearLongPressTimer();
+                }
+            }, { passive: true });
+
+            document.addEventListener('pointerup', clearLongPressTimer, { passive: true });
+            document.addEventListener('pointercancel', clearLongPressTimer, { passive: true });
+
+            document.addEventListener('click', (e) => {
+                const img = e.target.closest('.product-image');
+                if (!img) return;
+
+                e.preventDefault();
+                e.stopImmediatePropagation();
+
+                if (suppressNextImageClick) {
+                    suppressNextImageClick = false;
+                    return;
+                }
+
+                openImagePreviewFromImage(img);
+            });
+
+            document.addEventListener('contextmenu', (e) => {
+                if (!e.target.closest('.product-image')) return;
+                e.preventDefault();
+            });
+
+            previewOverlay.addEventListener('click', (e) => {
+                if (e.target === previewOverlay) closeImagePreview();
+            });
+            previewClose.addEventListener('click', closeImagePreview);
+
+            confirmOverlay.addEventListener('click', (e) => {
+                if (e.target === confirmOverlay) closeDownloadConfirm();
+            });
+            cancelButton.addEventListener('click', closeDownloadConfirm);
+            confirmButton.addEventListener('click', downloadPendingImage);
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key !== 'Escape') return;
+                closeImagePreview();
+                closeDownloadConfirm();
+            });
+        }
 
         // 加载商品数据
         async function loadProducts() {
@@ -303,24 +635,31 @@
                 grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary);">暂无商品</p>';
                 return;
             }
-            grid.innerHTML = products.map(product => `
+            grid.innerHTML = products.map(product => {
+                const image = escapeAttribute(product.image);
+                const name = escapeAttribute(product.name);
+                const price = escapeAttribute(product.price);
+
+                return `
                 <div class="product-card">
                     <div class="product-image-wrapper">
                         <img
-                            src="${product.image}"
-                            alt="${product.name}"
+                            src="${image}"
+                            alt="${name}"
                             class="product-image"
-                            data-original="${product.image}"
+                            data-original="${image}"
+                            data-product-name="${name}"
                             data-retry="0"
                             onerror="handleImageError(this)"
                         >
                     </div>
                     <div class="product-info">
-                        <div class="product-name">${product.name}</div>
-                        <div class="product-price">${product.price}</div>
+                        <div class="product-name">${name}</div>
+                        <div class="product-price">${price}</div>
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
         // 图片加载失败处理：最多重试 2 次后降级为占位图
@@ -351,6 +690,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             const products = await loadProducts();
             renderProducts(products);
+            initImageInteractions();
             initPullToRefresh();
         });
 
@@ -436,6 +776,7 @@
 
         // 点击卡片的交互
         document.addEventListener('click', (e) => {
+            if (e.target.closest('.product-image')) return;
             const card = e.target.closest('.product-card');
             if (card) {
                 const productName = card.querySelector('.product-name').textContent;
