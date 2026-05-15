@@ -1,9 +1,7 @@
 # Project Collaboration Notes
 
 - After every feature change, fix, or optimization in this project, include clickable local preview links in the final response so the user can immediately check the result on their phone.
-- Use the current LAN preview server when available. For this workspace, the current phone-accessible URLs are:
-  - Display page: http://172.20.10.5:8002/index.html
-  - Admin page: http://172.20.10.5:8002/admin.html
-- Before returning preview links, check whether the last preview server is still running and usable. If it is usable, keep using the same port instead of starting another server.
-- If the last preview server is not usable, stop/clean up that old service if needed, then start the next port number. For example, keep using 8002 while it works; if 8002 fails, move to 8003.
-- If the LAN IP or port changes, refresh the links before responding and update this file.
+- Start the dev server with `npm run dev`. It auto-detects an open port (starting at 8002) and the LAN IP, prints both URLs and a QR code at startup. Use the URLs from the latest server output for previews.
+- The dev server provides hot reload (HTML/CSS/JS/products.json) and local upload endpoints. Saving in `admin.html` writes to local files and (on the `test` branch only) auto-commits & pushes to `origin/test`.
+- Do not hardcode IPs or ports anywhere — always pull them from the running server's banner output.
+- Code changes for ongoing development happen on the `test` branch. `main` is the stable branch and is merged into only after `test` is verified.
