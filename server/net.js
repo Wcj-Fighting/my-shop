@@ -34,13 +34,24 @@ function pickLanIp(interfaces) {
   return candidates[0].address;
 }
 
-function probePort(port) {
+function probeOn(port, host) {
   return new Promise((resolve) => {
     const tester = net.createServer()
       .once('error', () => resolve(false))
       .once('listening', () => tester.close(() => resolve(true)))
-      .listen(port);
+      .listen(port, host);
   });
+}
+
+async function probePort(port) {
+  // Probe both stacks: a port is "free" only when both IPv4 and IPv6
+  // can bind. Otherwise we may pick a port already held by an IPv4-only
+  // listener (e.g. python http.server) and let browser-sync silently
+  // fall back to a different port without updating our banner.
+  const v4 = await probeOn(port, '0.0.0.0');
+  if (!v4) return false;
+  const v6 = await probeOn(port, '::');
+  return v6;
 }
 
 async function findOpenPort(start, end) {
