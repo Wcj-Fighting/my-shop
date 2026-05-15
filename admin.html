@@ -382,7 +382,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>商品管理后台</h1>
+            <h1>商品管理后台<span id="modeTag" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:4px;background:#888;color:#fff;font-size:12px;vertical-align:middle">github mode</span></h1>
             <p>通过 GitHub API 管理您的商品数据</p>
         </div>
 
@@ -460,6 +460,27 @@
 
         let products = [];
         let editingId = null;
+        // dev server detection: if /api/health responds within 1s, use local mode
+        window.__SHOP_MODE__ = 'github';
+        window.__SHOP_AUTO_SYNC__ = false;
+        (async () => {
+          try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 1000);
+            const res = await fetch('/api/health', { signal: ctrl.signal, cache: 'no-store' });
+            clearTimeout(timer);
+            if (res.ok) {
+              const data = await res.json();
+              window.__SHOP_MODE__ = 'local';
+              window.__SHOP_AUTO_SYNC__ = !!data.autoSync;
+              const tag = document.getElementById('modeTag');
+              if (tag) {
+                tag.textContent = data.autoSync ? 'local mode (sync)' : 'local mode (no sync)';
+                tag.style.background = '#0a7d2c';
+              }
+            }
+          } catch { /* keep github mode */ }
+        })();
         let pendingImageBlob = null;
 
         // 初始化
@@ -578,15 +599,18 @@
             if (pendingImageBlob) {
                 const token = (localStorage.getItem('github_token') || '').trim();
 
-                if (!token) {
-                    showStatus('productsStatus', '请先保存 Token', 'error');
-                    return;
-                }
-
                 try {
                     const sizeKB = Math.round(pendingImageBlob.size / 1024);
                     showStatus('productsStatus', `正在上传图片（${sizeKB} KB）...`, 'loading');
-                    image = await uploadImageToGitHub(pendingImageBlob, GITHUB_USERNAME, GITHUB_REPO, token);
+                    if (window.__SHOP_MODE__ === 'local') {
+                        image = await uploadImageToLocal(pendingImageBlob);
+                    } else {
+                        if (!token) {
+                            showStatus('productsStatus', '请先保存 Token', 'error');
+                            return;
+                        }
+                        image = await uploadImageToGitHub(pendingImageBlob, GITHUB_USERNAME, GITHUB_REPO, token);
+                    }
                     clearPendingImage();
                 } catch (error) {
                     console.error('Upload failed:', error);
@@ -678,6 +702,19 @@
                 }
                 pendingImageBlob = null;
             }
+        }
+
+        async function uploadImageToLocal(blob) {
+          const fd = new FormData();
+          const ext = (blob.type.split('/')[1] || 'bin').replace('jpeg', 'jpg');
+          fd.append('file', blob, `upload.${ext}`);
+          const res = await fetch('/api/upload', { method: 'POST', body: fd });
+          if (!res.ok) {
+            const err = await res.text();
+            throw new Error(`upload failed: ${res.status} ${err.slice(0, 200)}`);
+          }
+          const data = await res.json();
+          return data.url;
         }
 
         // 上传单张图片到 GitHub，返回 jsDelivr CDN URL（国内访问快且稳定）
@@ -779,6 +816,28 @@
 
         // 保存到 GitHub
         async function saveToGitHub() {
+            if (window.__SHOP_MODE__ === 'local') {
+                showStatus('productsStatus', '正在保存（本地）...', 'loading');
+                try {
+                    const res = await fetch('/api/save-products', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ products })
+                    });
+                    if (!res.ok) {
+                        const err = await res.text();
+                        throw new Error(`${res.status} ${err.slice(0, 200)}`);
+                    }
+                    const data = await res.json();
+                    const syncMsg = data.synced ? '，已 push 到 test 分支' : '（未同步到远端）';
+                    showStatus('productsStatus', `✓ 已保存到本地${syncMsg}`, 'success');
+                } catch (error) {
+                    console.error('Local save failed:', error);
+                    showStatus('productsStatus', `本地保存失败：${error.message}`, 'error');
+                }
+                return;
+            }
+
             const token = (localStorage.getItem('github_token') || '').trim();
 
             if (!token) {
