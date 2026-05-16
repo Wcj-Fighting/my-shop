@@ -155,11 +155,15 @@ function createEvent(type, target, extra = {}) {
 function createSandbox() {
     const elements = new Map();
     const documentListeners = {};
+    const windowListeners = {};
     const createdAnchors = [];
     const body = new FakeElement('body', 'body');
+    const documentElement = new FakeElement('html', 'html');
+    documentElement.scrollTop = 0;
 
     const ids = [
         'productsGrid',
+        'backToTopButton',
         'pullRefreshIndicator',
         'imagePreviewOverlay',
         'imagePreviewImage',
@@ -179,6 +183,8 @@ function createSandbox() {
 
     const document = {
         body,
+        documentElement,
+        scrollingElement: documentElement,
         getElementById(id) {
             return elements.get(id) || null;
         },
@@ -205,8 +211,22 @@ function createSandbox() {
         window: {
             location: { href: 'https://example.test/shop/', origin: 'https://example.test' },
             openCalls: [],
+            scrollToCalls: [],
             open(url, target, features) {
                 this.openCalls.push({ url, target, features });
+            },
+            scrollTo(options) {
+                this.scrollToCalls.push(options);
+                this.scrollY = 0;
+            },
+            addEventListener(type, handler) {
+                windowListeners[type] ||= [];
+                windowListeners[type].push(handler);
+            },
+            dispatchEvent(event) {
+                for (const handler of windowListeners[event.type] || []) {
+                    handler(event);
+                }
             },
             scrollY: 0,
         },
@@ -257,6 +277,54 @@ test('renderProducts includes image interaction metadata', () => {
     assert.match(html, /class="product-image"/);
     assert.match(html, /data-original="images\/wallet\.jpg"/);
     assert.match(html, /data-product-name="金色 钱包"/);
+});
+
+test('filterProducts matches product names by single character or text', () => {
+    const sandbox = createSandbox();
+    const products = [
+        { id: 1, name: '皮质钱包', price: '599', image: 'images/wallet.jpg' },
+        { id: 2, name: '水杯', price: '20', image: 'images/cup.jpg' },
+        { id: 3, name: '火锅', price: '123', image: 'images/hotpot.jpg' },
+    ];
+
+    assert.deepEqual(sandbox.filterProducts(products, '钱').map((product) => product.name), ['皮质钱包']);
+    assert.deepEqual(sandbox.filterProducts(products, '水杯').map((product) => product.name), ['水杯']);
+    assert.deepEqual(sandbox.filterProducts(products, ' ').map((product) => product.name), ['皮质钱包', '水杯', '火锅']);
+});
+
+test('back-to-top button appears after scrolling and returns to the top', () => {
+    const sandbox = createSandbox();
+    const button = sandbox.elements.get('backToTopButton');
+
+    sandbox.initBackToTop();
+    assert.equal(button.hidden, true);
+
+    sandbox.window.scrollY = 180;
+    sandbox.window.dispatchEvent({ type: 'scroll' });
+    assert.equal(button.hidden, false);
+    assert.equal(button.classList.contains('visible'), true);
+
+    button.dispatchEvent(createEvent('click', button));
+    assert.equal(sandbox.window.scrollToCalls[0].top, 0);
+    assert.equal(sandbox.window.scrollToCalls[0].behavior, 'smooth');
+
+    sandbox.window.dispatchEvent({ type: 'scroll' });
+    assert.equal(button.hidden, true);
+    assert.equal(button.classList.contains('visible'), false);
+});
+
+test('back-to-top falls back when smooth scroll API is unavailable', () => {
+    const sandbox = createSandbox();
+    const button = sandbox.elements.get('backToTopButton');
+    sandbox.window.scrollTo = undefined;
+
+    sandbox.initBackToTop();
+    sandbox.window.scrollY = 180;
+    sandbox.document.scrollingElement.scrollTop = 180;
+    sandbox.window.dispatchEvent({ type: 'scroll' });
+    button.dispatchEvent(createEvent('click', button));
+
+    assert.equal(sandbox.document.scrollingElement.scrollTop, 0);
 });
 
 test('clicking a product image opens the full-screen preview', () => {

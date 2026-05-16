@@ -72,6 +72,49 @@
             animation: spin 0.8s linear infinite;
         }
 
+        .back-to-top {
+            position: fixed;
+            top: 50%;
+            right: max(12px, env(safe-area-inset-right));
+            z-index: 2147483001;
+            width: 54px;
+            min-height: 64px;
+            border: 1px solid rgba(212, 175, 55, 0.45);
+            border-radius: 8px;
+            background: rgba(26, 26, 26, 0.9);
+            color: var(--accent-light);
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.35;
+            letter-spacing: 0;
+            cursor: pointer;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+            opacity: 0;
+            transform: translateY(-50%) translateX(12px);
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .back-to-top.visible {
+            opacity: 1;
+            transform: translateY(-50%) translateX(0);
+            pointer-events: auto;
+        }
+
+        .back-to-top:focus-visible {
+            outline: 3px solid rgba(212, 175, 55, 0.3);
+            outline-offset: 3px;
+        }
+
+        .back-to-top:active {
+            border-color: rgba(212, 175, 55, 0.75);
+            transform: translateY(-50%) translateX(0) scale(0.96);
+        }
+
+        .back-to-top span {
+            display: block;
+        }
+
         @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
@@ -107,6 +150,35 @@
             font-size: 14px;
             color: var(--text-secondary);
             letter-spacing: 1px;
+        }
+
+        .search-panel {
+            margin: -18px 0 28px;
+            animation: fadeInDown 0.8s ease-out 0.1s backwards;
+        }
+
+        .search-field {
+            width: 100%;
+            min-height: 46px;
+            border: 1px solid rgba(212, 175, 55, 0.26);
+            border-radius: 8px;
+            background: rgba(26, 26, 26, 0.78);
+            color: var(--text-primary);
+            font-size: 16px;
+            outline: none;
+            padding: 0 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        .search-field::placeholder {
+            color: rgba(176, 176, 176, 0.68);
+        }
+
+        .search-field:focus {
+            border-color: rgba(212, 175, 55, 0.68);
+            background: rgba(26, 26, 26, 0.94);
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12), 0 10px 28px rgba(0, 0, 0, 0.24);
         }
 
         /* 商品网格 */
@@ -339,6 +411,10 @@
                 gap: 16px;
             }
 
+            .search-panel {
+                margin-bottom: 24px;
+            }
+
             .product-info {
                 padding: 12px;
             }
@@ -387,11 +463,28 @@
         </div>
     </div>
 
+    <button class="back-to-top" id="backToTopButton" type="button" aria-label="回到顶部" hidden>
+        <span>回到</span>
+        <span>顶部</span>
+    </button>
+
     <div class="container">
         <!-- 页头 -->
         <div class="header">
             <h1>潮汕精选食品</h1>
             <p>CURATED COLLECTION</p>
+        </div>
+
+        <div class="search-panel">
+            <input
+                id="productSearch"
+                class="search-field"
+                type="search"
+                placeholder="搜索商品名称"
+                autocomplete="off"
+                enterkeyhint="search"
+                aria-label="搜索商品名称"
+            >
         </div>
 
         <!-- 商品网格 -->
@@ -401,7 +494,7 @@
 
         <!-- 页脚 -->
         <div class="footer">
-            <p>© 2026 商品展览 | 精心为您挑选</p>
+            <p>© 精心为您挑选</p>
         </div>
     </div>
 
@@ -416,6 +509,8 @@
         let suppressNextImageClick = false;
         let pendingDownloadImage = null;
         let imageInteractionsReady = false;
+        let allProducts = [];
+        let currentSearchQuery = '';
 
         function escapeAttribute(value) {
             return String(value ?? '')
@@ -628,11 +723,32 @@
             }
         }
 
+        function filterProducts(products, query) {
+            const keyword = String(query || '').trim().toLowerCase();
+            if (!keyword) return products || [];
+            return (products || []).filter((product) => String(product.name || '').toLowerCase().includes(keyword));
+        }
+
+        function renderCurrentProducts() {
+            const filteredProducts = filterProducts(allProducts, currentSearchQuery);
+            const emptyMessage = currentSearchQuery ? '没有找到相关商品' : '暂无商品';
+            renderProducts(filteredProducts, emptyMessage);
+        }
+
+        function initProductSearch() {
+            const searchInput = document.getElementById('productSearch');
+            if (!searchInput) return;
+            searchInput.addEventListener('input', () => {
+                currentSearchQuery = searchInput.value;
+                renderCurrentProducts();
+            });
+        }
+
         // 渲染商品
-        function renderProducts(products) {
+        function renderProducts(products, emptyMessage = '暂无商品') {
             const grid = document.getElementById('productsGrid');
             if (!products || products.length === 0) {
-                grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary);">暂无商品</p>';
+                grid.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary);">${emptyMessage}</p>`;
                 return;
             }
             grid.innerHTML = products.map(product => {
@@ -688,11 +804,43 @@
 
         // 页面加载完成后加载并渲染商品
         document.addEventListener('DOMContentLoaded', async () => {
-            const products = await loadProducts();
-            renderProducts(products);
+            initProductSearch();
+            allProducts = await loadProducts();
+            renderCurrentProducts();
             initImageInteractions();
             initPullToRefresh();
+            initBackToTop();
         });
+
+        function initBackToTop() {
+            const button = document.getElementById('backToTopButton');
+            if (!button) return;
+            const SHOW_AFTER = 120;
+
+            function updateVisibility() {
+                const shouldShow = window.scrollY > SHOW_AFTER;
+                if (shouldShow) {
+                    button.hidden = false;
+                    requestAnimationFrame(() => button.classList.add('visible'));
+                } else {
+                    button.classList.remove('visible');
+                    button.hidden = true;
+                }
+            }
+
+            button.addEventListener('click', () => {
+                const scrollRoot = document.scrollingElement || document.documentElement || document.body;
+                if (typeof window.scrollTo === 'function') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+                scrollRoot.scrollTop = 0;
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
+                requestAnimationFrame(updateVisibility);
+            });
+            window.addEventListener('scroll', updateVisibility, { passive: true });
+            updateVisibility();
+        }
 
         // 下拉刷新
         function initPullToRefresh() {
@@ -754,8 +902,8 @@
                     indicator.querySelector('svg').style.transform = '';
 
                     try {
-                        const products = await loadProducts();
-                        renderProducts(products);
+                        allProducts = await loadProducts();
+                        renderCurrentProducts();
                     } catch (e) {
                         console.error('Refresh failed:', e);
                     }

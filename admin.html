@@ -83,9 +83,9 @@
         }
 
         .form-group label {
-            font-size: 12px;
+            font-size: 15px;
             color: var(--text-secondary);
-            margin-bottom: 6px;
+            margin-bottom: 8px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -95,10 +95,10 @@
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(212, 175, 55, 0.3);
             border-radius: 6px;
-            padding: 10px 12px;
+            padding: 12px 14px;
             color: var(--text-primary);
             font-family: inherit;
-            font-size: 14px;
+            font-size: 16px;
             transition: border-color 0.3s;
         }
 
@@ -109,24 +109,37 @@
             background: rgba(255, 255, 255, 0.08);
         }
 
-        .config-help {
-            background: rgba(212, 175, 55, 0.1);
-            border-left: 3px solid var(--accent-gold);
-            padding: 12px;
-            border-radius: 4px;
+        .price-input {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 6px;
+            padding-left: 12px;
+            transition: border-color 0.3s;
+        }
+
+        .price-input:focus-within {
+            border-color: var(--accent-gold);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .price-currency {
+            color: var(--text-primary);
             font-size: 12px;
-            color: var(--text-secondary);
-            margin-bottom: 16px;
-            line-height: 1.6;
+            font-weight: 600;
+            line-height: 1;
         }
 
-        .config-help a {
-            color: var(--accent-gold);
-            text-decoration: none;
-        }
-
-        .config-help a:hover {
-            text-decoration: underline;
+        .form-group .price-input input,
+        .form-group .price-input input:focus {
+            flex: 1;
+            min-width: 0;
+            background: transparent;
+            border: 0;
+            padding: 12px 14px 12px 0;
+            font-size: 16px;
         }
 
         .button-group {
@@ -236,6 +249,27 @@
             color: var(--accent-gold);
         }
 
+        .product-search {
+            margin-bottom: 18px;
+        }
+
+        .product-search input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 6px;
+            padding: 12px 14px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 16px;
+        }
+
+        .product-search input:focus {
+            outline: none;
+            border-color: var(--accent-gold);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
         /* 商品列表 */
         .products-list {
             margin-bottom: 30px;
@@ -245,10 +279,11 @@
 
         .product-item {
             display: grid;
-            grid-template-columns: 60px minmax(0, 1fr) auto;
-            gap: 12px;
+            grid-template-columns: 72px minmax(0, 1fr) minmax(160px, 1fr);
+            gap: 14px;
             align-items: center;
-            padding: 12px;
+            min-height: 96px;
+            padding: 12px 16px;
             background: rgba(255, 255, 255, 0.03);
             border-radius: 6px;
             margin-bottom: 8px;
@@ -256,8 +291,8 @@
         }
 
         .product-item img {
-            width: 60px;
-            height: 60px;
+            width: 72px;
+            height: 72px;
             border-radius: 4px;
             object-fit: cover;
             background: rgba(255, 255, 255, 0.05);
@@ -271,17 +306,18 @@
         }
 
         .product-item-name {
-            font-size: 14px;
+            font-size: 18px;
             color: var(--text-primary);
-            font-weight: 500;
+            font-weight: 700;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
         .product-item-price {
-            font-size: 12px;
+            font-size: 16px;
             color: var(--accent-gold);
+            font-weight: 700;
         }
 
         .product-item-id {
@@ -289,14 +325,17 @@
         }
 
         .product-item-actions {
-            display: flex;
-            gap: 6px;
-            justify-content: flex-end;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            justify-self: stretch;
         }
 
         .product-item-actions button {
-            padding: 6px 12px;
-            font-size: 12px;
+            min-height: 44px;
+            padding: 8px 10px;
+            font-size: 16px;
+            font-weight: 700;
         }
 
         /* 表单区 */
@@ -306,7 +345,7 @@
         }
 
         .form-section h3 {
-            font-size: 16px;
+            font-size: 20px;
             margin-bottom: 16px;
             color: var(--accent-light);
         }
@@ -338,6 +377,15 @@
             margin-top: 20px;
         }
 
+        .form-section .btn-primary,
+        .form-section .btn-secondary,
+        .save-server-button {
+            min-height: 44px;
+            padding: 8px 14px;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px 20px;
@@ -354,23 +402,25 @@
             }
 
             .product-item {
-                grid-template-columns: 56px minmax(0, 1fr) auto;
+                grid-template-columns: 64px minmax(0, 1fr) minmax(116px, 1fr);
                 gap: 8px;
+                min-height: 88px;
                 padding: 10px;
             }
 
             .product-item img {
-                width: 56px;
-                height: 56px;
+                width: 64px;
+                height: 64px;
             }
 
             .product-item-actions {
-                flex-direction: row;
-                gap: 6px;
+                gap: 8px;
             }
 
             .product-item-actions button {
-                padding: 6px 10px;
+                min-height: 42px;
+                padding: 8px 6px;
+                font-size: 15px;
             }
 
             .form-row {
@@ -383,23 +433,17 @@
     <div class="container">
         <div class="header">
             <h1>商品管理后台<span id="modeTag" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:4px;background:#888;color:#fff;font-size:12px;vertical-align:middle">github mode</span></h1>
-            <p>通过 GitHub API 管理您的商品数据</p>
         </div>
 
         <!-- 配置区 -->
         <div class="config-section">
-            <h2>GitHub Token</h2>
-            <div class="config-help">
-                仓库 <strong>Wcj-Fighting/my-shop</strong> 已写死。只需在下方输入 Token 即可，仅保存在你的浏览器。
-                <br>忘了 Token 或首次使用？<a href="https://github.com/settings/tokens" target="_blank">点此生成新 Token</a>（勾选 repo 权限）
-            </div>
+            <h2>密码</h2>
             <div class="form-group" style="margin-bottom: 16px;">
-                <label>Personal Access Token</label>
-                <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxx">
+                <input type="password" id="githubToken" aria-label="密码" placeholder="请输入密码保存">
             </div>
             <div class="button-group">
-                <button class="btn-primary" onclick="saveConfig()">保存 Token</button>
-                <button class="btn-secondary" onclick="clearConfig()">清除 Token</button>
+                <button class="btn-primary" onclick="saveConfig()">保存密码</button>
+                <button class="btn-secondary" onclick="clearConfig()">清除密码</button>
             </div>
             <div id="configStatus" class="status-message"></div>
         </div>
@@ -407,6 +451,9 @@
         <!-- 商品管理区 -->
         <div class="products-section">
             <h2>商品管理</h2>
+            <div class="product-search">
+                <input type="search" id="productSearch" placeholder="搜索商品名称">
+            </div>
             <div id="productsStatus" class="status-message"></div>
 
             <!-- 商品列表 -->
@@ -422,7 +469,10 @@
                     </div>
                     <div class="form-group">
                         <label>价格</label>
-                        <input type="text" id="productPrice" placeholder="例：¥2,899">
+                        <div class="price-input">
+                            <span class="price-currency">¥</span>
+                            <input type="text" id="productPrice" inputmode="decimal" placeholder="例：2,899">
+                        </div>
                     </div>
                 </div>
                 <div class="form-row full">
@@ -442,13 +492,10 @@
 
             <!-- 持久化保存 -->
             <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(212, 175, 55, 0.2);">
-                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.6;">
-                    <strong style="color: var(--accent-gold);">⚠ 重要：</strong>上方"保存商品"只改浏览器临时数据。<br>
-                    要让所有访客看到更新，必须点击下方按钮之一：
+                <div style="font-size: 18px; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.45;">
+                    <strong style="color: var(--accent-gold);">商品内容编辑完一定要记得点击下方保存到服务器！！</strong>
                 </div>
-                <button class="btn-success" onclick="saveToGitHub()" style="width: 100%; margin-bottom: 10px;">💾 保存到 GitHub（需先配置）</button>
-                <button class="btn-secondary" onclick="migrateToJsdelivr()" style="width: 100%; margin-bottom: 10px;">🚀 一键迁移老图片到 CDN（jsDelivr 加速）</button>
-                <button class="btn-secondary" onclick="exportJson()" style="width: 100%;">📥 导出 products.json（本地测试用）</button>
+                <button class="btn-success save-server-button" onclick="saveToGitHub()" style="width: 100%; margin-bottom: 10px;">保存到服务器</button>
             </div>
         </div>
     </div>
@@ -482,11 +529,16 @@
           } catch { /* keep github mode */ }
         })();
         let pendingImageBlob = null;
+        let productSearchQuery = '';
 
         // 初始化
         document.addEventListener('DOMContentLoaded', () => {
             loadConfig();
             loadProducts();
+            document.getElementById('productSearch').addEventListener('input', (event) => {
+                productSearchQuery = event.target.value.trim().toLowerCase();
+                renderProductsList();
+            });
         });
 
         // 保存配置
@@ -494,12 +546,12 @@
             const token = document.getElementById('githubToken').value.trim();
 
             if (!token) {
-                showStatus('configStatus', '请填写 Token', 'error');
+                showStatus('configStatus', '请填写密码', 'error');
                 return;
             }
 
             localStorage.setItem('github_token', token);
-            showStatus('configStatus', '✓ Token 已保存（仅保存在本浏览器）', 'success');
+            showStatus('configStatus', '✓ 密码已保存（仅保存在本浏览器）', 'success');
         }
 
         // 加载配置
@@ -510,10 +562,10 @@
 
         // 清除配置
         function clearConfig() {
-            if (confirm('确定要清除 Token 吗？')) {
+            if (confirm('确定要清除密码吗？')) {
                 localStorage.removeItem('github_token');
                 document.getElementById('githubToken').value = '';
-                showStatus('configStatus', '✓ Token 已清除', 'success');
+                showStatus('configStatus', '✓ 密码已清除', 'success');
             }
         }
 
@@ -539,7 +591,16 @@
                 return;
             }
 
-            list.innerHTML = products.map(product => `
+            const visibleProducts = productSearchQuery
+                ? products.filter(product => String(product.name || '').toLowerCase().includes(productSearchQuery))
+                : products;
+
+            if (visibleProducts.length === 0) {
+                list.innerHTML = '<div class="empty-state"><p>没有找到匹配的商品</p></div>';
+                return;
+            }
+
+            list.innerHTML = visibleProducts.map(product => `
                 <div class="product-item">
                     <img src="${product.image}" alt="${product.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%231a1a1a%22 width=%22100%22 height=%22100%22/%3E%3C/svg%3E'">
                     <div class="product-item-info">
@@ -555,6 +616,15 @@
             `).join('');
         }
 
+        function stripPriceCurrency(price) {
+            return String(price || '').replace(/^[\s¥￥]+/, '').trim();
+        }
+
+        function formatPrice(price) {
+            const value = stripPriceCurrency(price);
+            return value ? `¥${value}` : '';
+        }
+
         // 编辑商品
         function editProduct(id) {
             const product = products.find(p => p.id === id);
@@ -564,7 +634,7 @@
             editingId = id;
             document.getElementById('formTitle').textContent = '编辑商品';
             document.getElementById('productName').value = product.name;
-            document.getElementById('productPrice').value = product.price;
+            document.getElementById('productPrice').value = stripPriceCurrency(product.price);
             document.getElementById('productImage').value = product.image;
             previewImage();
             window.scrollTo({ top: document.querySelector('.form-section').offsetTop - 100, behavior: 'smooth' });
@@ -582,10 +652,11 @@
         // 保存商品
         async function saveProduct() {
             const name = document.getElementById('productName').value.trim();
-            const price = document.getElementById('productPrice').value.trim();
+            const priceInput = document.getElementById('productPrice').value.trim();
+            const price = formatPrice(priceInput);
             let image = document.getElementById('productImage').value.trim();
 
-            if (!name || !price) {
+            if (!name || !priceInput) {
                 showStatus('productsStatus', '请填写名称和价格', 'error');
                 return;
             }
@@ -606,7 +677,7 @@
                         image = await uploadImageToLocal(pendingImageBlob);
                     } else {
                         if (!token) {
-                            showStatus('productsStatus', '请先保存 Token', 'error');
+                            showStatus('productsStatus', '请先保存密码', 'error');
                             return;
                         }
                         image = await uploadImageToGitHub(pendingImageBlob, GITHUB_USERNAME, GITHUB_REPO, token);
@@ -841,7 +912,7 @@
             const token = (localStorage.getItem('github_token') || '').trim();
 
             if (!token) {
-                showStatus('productsStatus', '请先保存 Token', 'error');
+                showStatus('productsStatus', '请先保存密码', 'error');
                 return;
             }
 
