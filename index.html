@@ -561,6 +561,10 @@
             return `${sanitizeFilename(context.name)}${getImageExtension(context.src)}`;
         }
 
+        function getShareFilename(context) {
+            return `product-image${getImageExtension(context.src)}`;
+        }
+
         function getImageMimeType(src, fallbackType = '') {
             if (fallbackType && fallbackType.startsWith('image/')) return fallbackType;
             const extension = getImageExtension(src);
@@ -650,7 +654,7 @@
 
             const blob = await response.blob();
             const type = getImageMimeType(context.src, blob.type);
-            return new File([blob], getDownloadFilename(context), { type });
+            return new File([blob], getShareFilename(context), { type });
         }
 
         async function shareImage(context) {
