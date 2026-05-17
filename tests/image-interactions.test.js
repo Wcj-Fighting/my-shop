@@ -407,6 +407,7 @@ test('confirming share opens the system share sheet with an image file', async (
     assert.equal(sandbox.shareCalls.length, 1);
     assert.equal(sandbox.shareCalls[0].files[0].name, '火锅 套餐.jpg');
     assert.equal(sandbox.shareCalls[0].files[0].type, 'image/jpeg');
+    assert.deepEqual(Object.keys(sandbox.shareCalls[0]), ['files']);
     assert.equal(sandbox.elements.get('downloadConfirmOverlay').hidden, true);
 });
 

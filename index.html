@@ -661,8 +661,6 @@
             const file = await createShareFile(context);
             const payload = {
                 files: [file],
-                title: context.name,
-                text: context.name,
             };
 
             if (navigator.canShare && !navigator.canShare({ files: payload.files })) {
