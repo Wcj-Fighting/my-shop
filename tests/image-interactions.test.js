@@ -389,6 +389,20 @@ test('touch long-press keeps the native image sharing menu available', async () 
     assert.equal(sandbox.elements.get('imagePreviewOverlay').hidden, true);
 });
 
+test('touch long-press suppresses the follow-up preview click', async () => {
+    const sandbox = createSandbox();
+    sandbox.initImageInteractions();
+    const image = makeProductImage();
+
+    sandbox.document.dispatchEvent(createEvent('pointerdown', image));
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    sandbox.document.dispatchEvent(createEvent('pointerup', image));
+    sandbox.document.dispatchEvent(createEvent('click', image));
+
+    assert.equal(sandbox.elements.get('downloadConfirmOverlay').hidden, true);
+    assert.equal(sandbox.elements.get('imagePreviewOverlay').hidden, true);
+});
+
 test('product image context menu is not blocked', () => {
     const sandbox = createSandbox();
     sandbox.initImageInteractions();
