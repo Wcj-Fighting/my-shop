@@ -308,13 +308,10 @@ test('renderProducts includes image interaction metadata', () => {
     assert.match(html, /draggable="false"/);
 });
 
-test('product images disable the native mobile image callout', () => {
+test('product images allow the native mobile image callout', () => {
     const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
-    assert.match(html, /\.product-image\s*\{[\s\S]*-webkit-touch-callout:\s*none;/);
-    assert.match(html, /\.product-image\s*\{[\s\S]*-webkit-user-select:\s*none;/);
-    assert.match(html, /\.product-image\s*\{[\s\S]*user-select:\s*none;/);
-    assert.match(html, /\.product-image\s*\{[\s\S]*-webkit-user-drag:\s*none;/);
+    assert.doesNotMatch(html, /\.product-image\s*\{[\s\S]*-webkit-touch-callout:\s*none;/);
 });
 
 test('filterProducts matches product names by single character or text', () => {
@@ -379,7 +376,7 @@ test('clicking a product image opens the full-screen preview', () => {
     assert.equal(previewImage.src, image.src);
 });
 
-test('long-press opens the download confirmation instead of preview', async () => {
+test('touch long-press keeps the native image sharing menu available', async () => {
     const sandbox = createSandbox();
     sandbox.initImageInteractions();
     const image = makeProductImage();
@@ -387,11 +384,20 @@ test('long-press opens the download confirmation instead of preview', async () =
     sandbox.document.dispatchEvent(createEvent('pointerdown', image));
     await new Promise((resolve) => setTimeout(resolve, 650));
     sandbox.document.dispatchEvent(createEvent('pointerup', image));
-    sandbox.document.dispatchEvent(createEvent('click', image));
 
-    assert.equal(sandbox.elements.get('downloadConfirmOverlay').hidden, false);
-    assert.equal(sandbox.elements.get('downloadConfirmOverlay').classList.contains('active'), true);
+    assert.equal(sandbox.elements.get('downloadConfirmOverlay').hidden, true);
     assert.equal(sandbox.elements.get('imagePreviewOverlay').hidden, true);
+});
+
+test('product image context menu is not blocked', () => {
+    const sandbox = createSandbox();
+    sandbox.initImageInteractions();
+    const image = makeProductImage();
+    const event = createEvent('contextmenu', image);
+
+    sandbox.document.dispatchEvent(event);
+
+    assert.equal(event.defaultPrevented, false);
 });
 
 test('confirming share opens the system share sheet with an image file', async () => {
