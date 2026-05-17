@@ -2,7 +2,7 @@
 
 ## Goal
 
-On the public product display page, users can tap a product image to view it full screen. Users can long-press a product image to open a styled confirmation prompt before downloading the image locally.
+On the public product display page, users can tap a product image to view it full screen. Users can long-press a product image to open a styled confirmation prompt before sharing the image through the phone system share sheet.
 
 ## Scope
 
@@ -18,15 +18,17 @@ Single tap or click on a product image opens a full-screen preview overlay.
 
 The preview overlay uses the current black and gold visual language. The image is centered, constrained to the viewport, and can be closed by tapping the backdrop or close button.
 
-Long-pressing a product image for about 600 ms opens a confirmation dialog instead of opening the preview. The dialog asks whether to download the image and provides Cancel and Download actions.
+Long-pressing a product image for about 600 ms opens a confirmation dialog instead of opening the preview. The dialog asks whether to share the image and provides Cancel and Share actions.
 
 If the pointer or touch moves meaningfully before the long-press threshold, the long-press is cancelled so normal scrolling still works on mobile.
 
-## Download Behavior
+## Share Behavior
 
-The Download action creates an anchor with `download` and points it at the product image URL. For remote images where browser cross-origin rules prevent a direct file download, the page falls back to opening the image URL in a new tab so the user can save it manually.
+The Share action fetches the product image, wraps it as a `File`, and calls `navigator.share({ files })` so the user can choose WeChat or another app from the system share panel. The browser cannot preselect a WeChat friend; the user chooses WeChat and the recipient in the native flow.
 
-Downloaded filenames should prefer the product name when available, with unsafe filename characters removed.
+Shared filenames should prefer the product name when available, with unsafe filename characters removed.
+
+If file sharing is not supported by the current browser or context, the page stays on the share confirmation dialog and explains that system sharing requires a supported browser and secure context. This matters for phone LAN previews such as `http://10.x.x.x`, where iOS Safari commonly disables the Web Share API.
 
 ## UI Design
 
@@ -40,7 +42,7 @@ The dialog should be usable on both desktop and mobile, with buttons large enoug
 
 If the image URL is missing or currently using the placeholder fallback, the download confirmation should not open.
 
-If download setup fails, the page opens the image in a new tab as a fallback.
+If share setup fails, the page does not navigate away to the raw image URL. It keeps the user on the product page and shows a short explanation in the dialog.
 
 ## Testing
 
@@ -48,7 +50,6 @@ Add focused front-end behavior coverage for:
 
 - rendering products with image interaction metadata
 - single click opening the preview overlay
-- long-press opening the download confirmation instead of the preview
-- confirming download invoking the download path
+- long-press opening the share confirmation instead of the preview
+- confirming share invoking the system share path
 - cancelling or moving before the threshold preventing the long-press action
-

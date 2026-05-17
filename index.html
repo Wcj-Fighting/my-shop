@@ -229,6 +229,10 @@
             height: 100%;
             object-fit: cover;
             transition: transform 0.4s ease-out;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-user-drag: none;
         }
 
         .product-card:hover .product-image {
@@ -453,12 +457,12 @@
 
     <div class="download-confirm-overlay" id="downloadConfirmOverlay" hidden>
         <div class="download-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="downloadConfirmTitle">
-            <p class="download-confirm-eyebrow">图片操作</p>
-            <h2 id="downloadConfirmTitle">下载图片</h2>
-            <p class="download-confirm-copy">是否下载这张图片？</p>
+            <p class="download-confirm-eyebrow">图片分享</p>
+            <h2 id="downloadConfirmTitle">分享图片</h2>
+            <p class="download-confirm-copy" id="downloadConfirmCopy">是否分享这张商品图片？</p>
             <div class="download-confirm-actions">
                 <button class="download-confirm-cancel" id="downloadCancelButton" type="button">取消</button>
-                <button class="download-confirm-primary" id="downloadConfirmButton" type="button">下载图片</button>
+                <button class="download-confirm-primary" id="downloadConfirmButton" type="button">分享图片</button>
             </div>
         </div>
     </div>
@@ -511,6 +515,8 @@
         let imageInteractionsReady = false;
         let allProducts = [];
         let currentSearchQuery = '';
+        const DEFAULT_SHARE_COPY = '是否分享这张商品图片？';
+        const SHARE_UNAVAILABLE_COPY = '当前浏览器或访问地址暂不支持直接拉起系统分享面板。手机预览地址是 HTTP 时常会这样；发布到 HTTPS 后再试，或使用浏览器自带分享按钮。';
 
         function escapeAttribute(value) {
             return String(value ?? '')
@@ -555,6 +561,19 @@
             return `${sanitizeFilename(context.name)}${getImageExtension(context.src)}`;
         }
 
+        function getImageMimeType(src, fallbackType = '') {
+            if (fallbackType && fallbackType.startsWith('image/')) return fallbackType;
+            const extension = getImageExtension(src);
+            const mimeTypes = {
+                '.avif': 'image/avif',
+                '.gif': 'image/gif',
+                '.jpg': 'image/jpeg',
+                '.png': 'image/png',
+                '.webp': 'image/webp',
+            };
+            return mimeTypes[extension] || 'image/jpeg';
+        }
+
         function setModalOpen(open) {
             document.body.classList.toggle('modal-open', open);
         }
@@ -596,6 +615,8 @@
             if (!context) return;
 
             pendingDownloadImage = context;
+            const copy = document.getElementById('downloadConfirmCopy');
+            if (copy) copy.textContent = DEFAULT_SHARE_COPY;
             showOverlay(document.getElementById('downloadConfirmOverlay'));
             setModalOpen(true);
         }
@@ -617,15 +638,60 @@
             link.remove();
         }
 
+        async function createShareFile(context) {
+            if (typeof File !== 'function') {
+                throw new Error('File sharing is not supported');
+            }
+
+            const response = await fetch(context.src);
+            if (!response.ok) {
+                throw new Error('Image could not be loaded for sharing');
+            }
+
+            const blob = await response.blob();
+            const type = getImageMimeType(context.src, blob.type);
+            return new File([blob], getDownloadFilename(context), { type });
+        }
+
+        async function shareImage(context) {
+            if (!window.isSecureContext || !navigator.share) {
+                throw new Error('System sharing is not supported');
+            }
+
+            const file = await createShareFile(context);
+            const payload = {
+                files: [file],
+                title: context.name,
+                text: context.name,
+            };
+
+            if (navigator.canShare && !navigator.canShare({ files: payload.files })) {
+                throw new Error('Image file sharing is not supported');
+            }
+
+            await navigator.share(payload);
+        }
+
+        function showShareUnavailableMessage() {
+            const copy = document.getElementById('downloadConfirmCopy');
+            if (copy) copy.textContent = SHARE_UNAVAILABLE_COPY;
+            showOverlay(document.getElementById('downloadConfirmOverlay'));
+            setModalOpen(true);
+        }
+
         async function downloadPendingImage() {
             if (!pendingDownloadImage) return;
             const context = pendingDownloadImage;
-            closeDownloadConfirm();
 
             try {
-                triggerImageDownload(context);
+                await shareImage(context);
+                closeDownloadConfirm();
             } catch (error) {
-                window.open(context.src, '_blank', 'noopener');
+                if (error?.name === 'AbortError') {
+                    closeDownloadConfirm();
+                    return;
+                }
+                showShareUnavailableMessage();
             }
         }
 
@@ -766,6 +832,7 @@
                             data-original="${image}"
                             data-product-name="${name}"
                             data-retry="0"
+                            draggable="false"
                             onerror="handleImageError(this)"
                         >
                     </div>

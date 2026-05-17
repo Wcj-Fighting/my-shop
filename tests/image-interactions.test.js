@@ -157,9 +157,19 @@ function createSandbox() {
     const documentListeners = {};
     const windowListeners = {};
     const createdAnchors = [];
+    const shareCalls = [];
     const body = new FakeElement('body', 'body');
     const documentElement = new FakeElement('html', 'html');
     documentElement.scrollTop = 0;
+
+    class FakeFile {
+        constructor(parts, name, options = {}) {
+            this.parts = parts;
+            this.name = name;
+            this.type = options.type || '';
+            this.size = parts.reduce((total, part) => total + (part.size || String(part).length), 0);
+        }
+    }
 
     const ids = [
         'productsGrid',
@@ -169,6 +179,7 @@ function createSandbox() {
         'imagePreviewImage',
         'imagePreviewClose',
         'downloadConfirmOverlay',
+        'downloadConfirmCopy',
         'downloadCancelButton',
         'downloadConfirmButton',
     ];
@@ -210,6 +221,7 @@ function createSandbox() {
         document,
         window: {
             location: { href: 'https://example.test/shop/', origin: 'https://example.test' },
+            isSecureContext: true,
             openCalls: [],
             scrollToCalls: [],
             open(url, target, features) {
@@ -230,14 +242,30 @@ function createSandbox() {
             },
             scrollY: 0,
         },
+        navigator: {
+            canShare: () => true,
+            async share(payload) {
+                shareCalls.push(payload);
+            },
+        },
+        File: FakeFile,
         setTimeout,
         clearTimeout,
         requestAnimationFrame: (callback) => callback(),
         Math,
         Date,
         URL,
-        fetch: async () => ({ ok: true, json: async () => ({ products: [] }) }),
+        fetch: async (url) => {
+            if (String(url).includes('products.json')) {
+                return { ok: true, json: async () => ({ products: [] }) };
+            }
+            return {
+                ok: true,
+                blob: async () => ({ size: 12, type: 'image/jpeg' }),
+            };
+        },
         createdAnchors,
+        shareCalls,
         elements,
     };
 
@@ -277,6 +305,16 @@ test('renderProducts includes image interaction metadata', () => {
     assert.match(html, /class="product-image"/);
     assert.match(html, /data-original="images\/wallet\.jpg"/);
     assert.match(html, /data-product-name="金色 钱包"/);
+    assert.match(html, /draggable="false"/);
+});
+
+test('product images disable the native mobile image callout', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+
+    assert.match(html, /\.product-image\s*\{[\s\S]*-webkit-touch-callout:\s*none;/);
+    assert.match(html, /\.product-image\s*\{[\s\S]*-webkit-user-select:\s*none;/);
+    assert.match(html, /\.product-image\s*\{[\s\S]*user-select:\s*none;/);
+    assert.match(html, /\.product-image\s*\{[\s\S]*-webkit-user-drag:\s*none;/);
 });
 
 test('filterProducts matches product names by single character or text', () => {
@@ -356,7 +394,7 @@ test('long-press opens the download confirmation instead of preview', async () =
     assert.equal(sandbox.elements.get('imagePreviewOverlay').hidden, true);
 });
 
-test('confirming download clicks a temporary download link', async () => {
+test('confirming share opens the system share sheet with an image file', async () => {
     const sandbox = createSandbox();
     sandbox.initImageInteractions();
     const image = makeProductImage('火锅 套餐', 'https://cdn.example.test/hotpot.jpg');
@@ -365,11 +403,27 @@ test('confirming download clicks a temporary download link', async () => {
     sandbox.elements.get('downloadConfirmButton').dispatchEvent(createEvent('click', sandbox.elements.get('downloadConfirmButton')));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    assert.equal(sandbox.createdAnchors.length, 1);
-    assert.equal(sandbox.createdAnchors[0].href, image.src);
-    assert.equal(sandbox.createdAnchors[0].download, '火锅 套餐.jpg');
-    assert.equal(sandbox.createdAnchors[0].clicked, true);
+    assert.equal(sandbox.createdAnchors.length, 0);
+    assert.equal(sandbox.shareCalls.length, 1);
+    assert.equal(sandbox.shareCalls[0].files[0].name, '火锅 套餐.jpg');
+    assert.equal(sandbox.shareCalls[0].files[0].type, 'image/jpeg');
     assert.equal(sandbox.elements.get('downloadConfirmOverlay').hidden, true);
+});
+
+test('share failure keeps the user in the page instead of opening the image url', async () => {
+    const sandbox = createSandbox();
+    sandbox.navigator.share = undefined;
+    sandbox.initImageInteractions();
+    const image = makeProductImage('头像', 'https://cdn.jsdelivr.net/avatar.jpg');
+
+    sandbox.openDownloadConfirmFromImage(image);
+    sandbox.elements.get('downloadConfirmButton').dispatchEvent(createEvent('click', sandbox.elements.get('downloadConfirmButton')));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(sandbox.createdAnchors.length, 0);
+    assert.equal(sandbox.window.openCalls.length, 0);
+    assert.equal(sandbox.elements.get('downloadConfirmOverlay').hidden, false);
+    assert.match(sandbox.elements.get('downloadConfirmCopy').textContent, /当前浏览器/);
 });
 
 test('moving before the long-press threshold cancels the confirmation', async () => {
